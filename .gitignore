@@ -1,0 +1,13 @@
+# Large PDF papers (copyrighted, do not distribute)
+data/validation/*.pdf
+
+# Model pickle files (re-generate with scripts)
+results/*.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db

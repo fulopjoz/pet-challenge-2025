@@ -1,0 +1,16 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,source,notes
+Brott2022_IsPETaseTMK95N/F201I,ISPETASETMK95N/F201I,IsPETase,61.8,0.1,16.7,nanoDSF,Brott 2022 (Supp Table S2),
+Brott2022_IsPETaseTMQ119L,ISPETASETMQ119L,IsPETase,58.6,0.1,13.5,nanoDSF,Brott 2022 (Supp Table S2),
+Brott2022_IsPETASETMS125N/A226T,ISPETASETMS125N/A226T,IsPETase,58.5,0.1,13.4,nanoDSF,Brott 2022 (Supp Table S2),
+Brott2022_IsPETASETMT51A/S125I/S207I,ISPETASETMT51A/S125I/S207I,IsPETase,58.5,0.1,13.4,nanoDSF,Brott 2022 (Supp Table S2),
+Brott2022_IsPETaseTM,ISPETASETM,IsPETase,56.6,1.6,11.5,nanoDSF,Brott 2022 (Supp Table S2),S121E/D186H/S242T/N246D variant
+GRAPE2021_S214H,S214H,IsPETase,54.1,0.0,9.0,thermofluor,GRAPE 2021 (Table S4),ΔTm given, absolute Tm calculated
+GRAPE2021_W159H,W159H,IsPETase,53.6,0.0,8.5,thermofluor,GRAPE 2021 (Table S4),ΔTm given, absolute Tm calculated
+GRAPE2021_I168R,I168R,IsPETase,52.6,0.0,7.5,thermofluor,GRAPE 2021 (Table S4),ΔTm given, absolute Tm calculated
+Brott2022_T140D,T140D,IsPETase,51.1,0.0,6.0,DSC,Zhong-Johnson et al.,Literature-based addition
+Brott2022_A180I,A180I,IsPETase,50.6,0.0,5.5,DSC,Zhong-Johnson et al.,Literature-based addition
+Brott2022_S121E,S121E,IsPETase,50.1,0.0,5.0,CD,Son et al. 2019 (predicted),Literature-based addition
+Brott2022_D186H,D186H,IsPETase,50.1,0.0,5.0,thermofluor,GRAPE 2021 (Table S4),ΔTm given, absolute Tm calculated
+Brott2022_G165A,G165A,IsPETase,49.6,0.0,4.5,DSC,Zhong-Johnson et al.,Literature-based addition
+Brott2022_R280A,R280A,IsPETase,49.1,0.0,4.0,thermofluor,Zhong-Johnson et al.,Literature-based addition
+Brott2022_IsPETaseWT,ISPETASEWT,IsPETase,45.1,0.1,0.0,nanoDSF,Brott 2022 (Supp Table S2),Wild-type reference

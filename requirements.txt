@@ -1,0 +1,23 @@
+# PET Challenge 2025 - Zero-Shot Prediction Pipeline
+# Install with: pip install -r requirements.txt
+
+# Core
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+scikit-learn>=1.3
+
+# PLM Scoring (choose one or both)
+fair-esm>=2.0.0      # ESM2-650M (Meta)
+# esm>=3.0.0          # ESMC-600M (EvolutionaryScale) — uncomment for ESMC
+
+# ML models
+xgboost>=2.0
+joblib>=1.3
+
+# Visualization (optional)
+matplotlib>=3.7
+seaborn>=0.12
+
+# Deep learning backend
+torch>=2.0

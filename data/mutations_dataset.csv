@@ -1,0 +1,15 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,source,notes
+WT,WT,IsPETase,45.1,0.1,0.0,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),Wild-type Ideonella sakaiensis PETase
+ThermoPETase,S121E/D186H/R280A,IsPETase,56.6,1.6,11.5,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),ThermoPETase (Son 2019 design)
+ThermoPETase+KF,S121E/D186H/R280A/K95N/F201I,IsPETase,61.6,0.1,16.5,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),ThermoPETase + K95N/F201I
+ThermoPETase+SS,S121E/D186H/R280A/N233C/S282C,IsPETase,68.2,0.1,23.1,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),ThermoPETase + disulfide bond N233C/S282C
+ThermoPETase+KF+SS,S121E/D186H/R280A/K95N/F201I/N233C/S282C,IsPETase,70.8,0.1,25.7,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),ThermoPETase + KF + disulfide
+DuraPETase,S121E/D186H/R280A/S214H/I168R/W159H/S188Q/R224Q/T140D,IsPETase,75.0,0.1,29.9,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),"DuraPETase (Cui 2021 design, 9 mutations)"
+DuraPETase+SS,S121E/D186H/R280A/S214H/I168R/W159H/S188Q/R224Q/T140D/N233C/S282C,IsPETase,81.1,0.1,36.0,nanoDSF,Brott 2022 (DOI: 10.1002/elsc.202100105),"DuraPETase + disulfide bond, highest Tm in dataset"
+FAST-PETase,N233K/R224Q/S121E/D186H/R280A,IsPETase,67.8,0.0,22.7,DSF,Lu 2022 (DOI: 10.1038/s41586-022-04599-z),"FAST-PETase, ML-designed (MutCompute)"
+WT (Son),WT,IsPETase,46.1,0.0,0.0,DSF,Son 2019 (DOI: 10.1021/acscatal.9b00568),"WT measured by Son et al., slightly different from Brott"
+ThermoPETase (Son),S121E/D186H/R280A,IsPETase,54.9,0.0,8.8,DSF,Son 2019 (DOI: 10.1021/acscatal.9b00568),ThermoPETase measured by Son et al.
+WT (Cui),WT,IsPETase,46.0,0.0,0.0,DSF,Cui 2021 (DOI: 10.1021/acscatal.0c05126),WT measured by Cui et al.
+DuraPETase (Cui),S121E/D186H/R280A/S214H/I168R/W159H/S188Q/R224Q/T140D,IsPETase,77.0,0.0,31.0,DSF,Cui 2021 (DOI: 10.1021/acscatal.0c05126),DuraPETase measured by Cui et al.
+LCC-WT,WT,LCC,84.7,0.0,0.0,DSF,Tournier 2020 (DOI: 10.1038/s41586-020-2149-4),"Leaf-branch compost cutinase, different enzyme family"
+LCC-ICCG,F243I/D238C/S283C/Y127G,LCC,94.5,0.0,9.8,DSF,Tournier 2020 (DOI: 10.1038/s41586-020-2149-4),"Engineered LCC variant (Carbios), 10000x activity"
