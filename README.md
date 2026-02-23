@@ -206,6 +206,8 @@ Ridge regression validated on **8 aggregated IsPETase Tm values** (LOOCV, from 1
 10. **Cui et al. (2021)** ACS Catal. DOI: 10.1021/acscatal.0c05126 - DuraPETase
 11. **Kral (2025)** MSc Thesis, Charles University - Zero-shot PLM scoring methodology
 12. **Kudla et al. (2009)** Science - mRNA folding and gene expression in E. coli
+13. **Han et al. (2017)** Nat Commun. DOI: 10.1038/s41467-017-02255-z - IsPETase crystal structure (1.58A)
+14. **Hong et al. (2023)** Nat Commun. DOI: 10.1038/s41467-023-43455-2 - Mesophilic/thermophilic PET hydrolase engineering
 
 ## Folder Structure
 

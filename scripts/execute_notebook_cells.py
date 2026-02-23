@@ -4,9 +4,12 @@ Execute non-GPU notebook cells locally and save outputs to the notebook.
 
 Runs cells that only need pandas/scipy/matplotlib (no ESM2/ESMC GPU):
 - Cell 12: Load and display ESM2 scores (shows v4 columns)
+- Cell 26: Validation & sanity checks
 - Cell 29: Generate v1 + v2 submissions
-- Cell 30: Compare v1 vs v2
+- Cell 30: Top-K WT vs mutant composition verification
+- Cell 31: Compare v1 vs v2
 - Cell 33: Final summary table
+- Cell 34: Download info
 
 Cells 0 and 4 are Colab setup — intentionally unexecuted in saved state.
 """
@@ -159,6 +162,17 @@ def main():
     ]
     execution_count += 1
 
+    # --- Cell 26: Validation & sanity checks ---
+    print("Executing cell 26 (validation checks)...")
+    from scipy.stats import spearmanr
+    context["spearmanr"] = spearmanr
+
+    cell26_code = "\n".join(nb["cells"][26]["source"])
+    out26 = capture_cell_output(cell26_code, context)
+    nb["cells"][26]["execution_count"] = execution_count
+    nb["cells"][26]["outputs"] = [make_text_output(out26)]
+    execution_count += 1
+
     # --- Cell 29: Generate submissions ---
     print("Executing cell 29 (generate submissions)...")
     cell29_code = (
@@ -192,9 +206,27 @@ def main():
     nb["cells"][29]["outputs"] = [make_text_output(out29)]
     execution_count += 1
 
-    # --- Cell 30: Compare v1 vs v2 ---
-    print("Executing cell 30 (v1 vs v2 comparison)...")
-    cell30_code = (
+    # --- Cell 30: Top-K WT vs mutant composition verification ---
+    print("Executing cell 30 (top-K WT composition)...")
+    # Need v2_sub and act1_col etc in context for this cell
+    v2_sub_tmp = pd.read_csv(os.path.join(PROJECT_ROOT, "results/submission_zero_shot_v2.csv"))
+    act1_col_tmp = [c for c in v2_sub_tmp.columns if "activity_1" in c][0]
+    act2_col_tmp = [c for c in v2_sub_tmp.columns if "activity_2" in c][0]
+    expr_col_tmp = [c for c in v2_sub_tmp.columns if "expression" in c][0]
+    context["v2_sub"] = v2_sub_tmp
+    context["act1_col"] = act1_col_tmp
+    context["act2_col"] = act2_col_tmp
+    context["expr_col"] = expr_col_tmp
+
+    cell30_code = "\n".join(nb["cells"][30]["source"])
+    out30 = capture_cell_output(cell30_code, context)
+    nb["cells"][30]["execution_count"] = execution_count
+    nb["cells"][30]["outputs"] = [make_text_output(out30)]
+    execution_count += 1
+
+    # --- Cell 31: Compare v1 vs v2 ---
+    print("Executing cell 31 (v1 vs v2 comparison)...")
+    cell31_code = (
         "from scipy import stats as sp_stats\n"
         "\n"
         "v1_sub = pd.read_csv(os.path.join(PROJECT_ROOT, 'results', 'submission_zero_shot.csv'))\n"
@@ -229,9 +261,9 @@ def main():
         "    status = 'OK' if wt_mean > mut_mean else 'WARNING'\n"
         "    print(f'  {label}: WT={wt_mean:.3f}, Mutants={mut_mean:.3f} [{status}]')\n"
     )
-    out30 = capture_cell_output(cell30_code, context)
-    nb["cells"][30]["execution_count"] = execution_count
-    nb["cells"][30]["outputs"] = [make_text_output(out30)]
+    out31 = capture_cell_output(cell31_code, context)
+    nb["cells"][31]["execution_count"] = execution_count
+    nb["cells"][31]["outputs"] = [make_text_output(out31)]
     execution_count += 1
 
     # --- Cell 33: Final summary ---
@@ -311,9 +343,9 @@ def main():
         json.dump(nb, f, indent=1)
 
     print("\nNotebook updated with cell outputs!")
-    print("Cells executed: 12, 29, 30, 33, 34")
+    print("Cells executed: 12, 26, 29, 30, 31, 33, 34")
     print("Cells left unexecuted (Colab setup): 0, 4")
-    print("Cells left unexecuted (GPU/plots): 20, 31")
+    print("Cells left unexecuted (GPU/plots): 20, 32")
 
 
 if __name__ == "__main__":
