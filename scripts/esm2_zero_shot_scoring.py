@@ -160,27 +160,41 @@ def compute_scores(log_probs, logits_raw, probs, sequence, alphabet):
         "entropy": entropy,
         "joint_ll": joint_ll,
         "per_position_log_probs": log_probs,
+        "pos_entropy": pos_entropy,       # (L,) entropy at each position
+        "native_ll": native_ll,           # (L,) native log-prob at each position
     }
 
 
-def score_mutation(wt_log_probs, wt_seq, mut_seq, alphabet):
+def score_mutation(wt_log_probs, wt_seq, mut_seq, alphabet,
+                   pos_entropy=None, native_ll=None):
     """
     Score a single-point mutation using WT-marginal method.
-    Returns delta_ll = log_prob(mut_aa, pos) - log_prob(wt_aa, pos)
+    Returns dict with:
+      - delta_ll: log_prob(mut_aa, pos) - log_prob(wt_aa, pos)
+      - entropy_at_site: positional entropy at mutation site (from WT context)
+      - native_ll_at_site: native log-prob at mutation site (from WT context)
     """
     assert len(wt_seq) == len(mut_seq), "Length mismatch: %d vs %d" % (len(wt_seq), len(mut_seq))
     diffs = [(i, wt_seq[i], mut_seq[i]) for i in range(len(wt_seq)) if wt_seq[i] != mut_seq[i]]
 
+    result = {"delta_ll": 0.0, "entropy_at_site": float('nan'), "native_ll_at_site": float('nan')}
+
     if len(diffs) == 0:
-        return 0.0  # identical to WT
+        return result  # identical to WT — site features are NaN
 
     delta_ll = 0.0
     for pos, wt_aa, mut_aa in diffs:
         wt_idx = alphabet.get_idx(wt_aa)
         mut_idx = alphabet.get_idx(mut_aa)
         delta_ll += wt_log_probs[pos, mut_idx] - wt_log_probs[pos, wt_idx]
+    result["delta_ll"] = float(delta_ll)
 
-    return float(delta_ll)
+    if pos_entropy is not None and len(diffs) > 0:
+        result["entropy_at_site"] = float(np.mean([pos_entropy[pos] for pos, _, _ in diffs]))
+    if native_ll is not None and len(diffs) > 0:
+        result["native_ll_at_site"] = float(np.mean([native_ll[pos] for pos, _, _ in diffs]))
+
+    return result
 
 
 def main():
@@ -271,10 +285,12 @@ def main():
             wt_scores = wt_results[wi]
             wt_seq = wt_seqs[wi]
 
-            # Delta LL (mutation score) from WT log_probs
-            delta_ll = score_mutation(
+            # Delta LL (mutation score) + position-specific features from WT log_probs
+            mut_result = score_mutation(
                 wt_scores["per_position_log_probs"],
-                wt_seq, test_seq, alphabet
+                wt_seq, test_seq, alphabet,
+                pos_entropy=wt_scores["pos_entropy"],
+                native_ll=wt_scores["native_ll"],
             )
 
             # Compute mutant absolute scores from WT log-probs (approximation)
@@ -287,12 +303,14 @@ def main():
                 "sequence": test_seq,
                 "wt_idx": wi,
                 "n_mutations": n_mut,
-                "delta_ll": delta_ll,
+                "delta_ll": mut_result["delta_ll"],
                 "abs_ll": mut_abs_ll,
                 "wt_abs_ll": wt_scores["abs_ll"],
                 "entropy": wt_scores["entropy"],
                 "logit_native": wt_scores["logit_native"],
                 "joint_ll": wt_scores["joint_ll"],
+                "entropy_at_site": mut_result["entropy_at_site"],
+                "native_ll_at_site": mut_result["native_ll_at_site"],
             })
         else:
             # No matching WT found -- score directly
@@ -310,6 +328,8 @@ def main():
                 "entropy": scores["entropy"],
                 "logit_native": scores["logit_native"],
                 "joint_ll": scores["joint_ll"],
+                "entropy_at_site": float('nan'),
+                "native_ll_at_site": float('nan'),
             })
 
         if (idx + 1) % 500 == 0:
@@ -321,7 +341,7 @@ def main():
 
     out_rows = []
     for i, r in enumerate(results):
-        out_rows.append({
+        row = {
             "test_idx": i,
             "wt_idx": r["wt_idx"],
             "n_mutations": r["n_mutations"],
@@ -331,7 +351,13 @@ def main():
             "entropy": "%.6f" % r["entropy"],
             "logit_native": "%.6f" % r["logit_native"],
             "joint_ll": "%.6f" % r["joint_ll"],
-        })
+        }
+        # New position-specific features (NaN for WT rows)
+        eas = r["entropy_at_site"]
+        nls = r["native_ll_at_site"]
+        row["entropy_at_site"] = "" if np.isnan(eas) else "%.6f" % eas
+        row["native_ll_at_site"] = "" if np.isnan(nls) else "%.6f" % nls
+        out_rows.append(row)
 
     out_df = pd.DataFrame(out_rows)
     out_df.to_csv(OUTPUT_CSV, index=False)

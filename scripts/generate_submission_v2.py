@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate PET Challenge 2025 Enhanced Zero-Shot Submission (v2)
+Generate PET Challenge 2025 Enhanced Zero-Shot Submission (v2/v4)
 
 Improvements over v1:
   1. Expression scoring uses CDS features (GC 5', rare codons) for scaffold-level
@@ -10,6 +10,8 @@ Improvements over v1:
      - act2 (pH 9.0, near-optimal): positive charge helps PET binding + salt bridges
   3. PLM features are properly decomposed: within-WT ranking uses delta_ll,
      between-WT ranking uses abs_ll/entropy/logit_native + CDS features
+  4. v4: Position-specific features (entropy_at_site, native_ll_at_site) provide
+     within-WT signal beyond delta_ll — conserved positions penalize mutations more
 
 Key insight: Within each WT scaffold, entropy/logit_native/joint_ll are CONSTANT
 across all single-point variants. Only delta_ll and abs_ll vary per mutation.
@@ -75,12 +77,27 @@ def compute_plm_scores(scores_df):
     entropy = scores_df["entropy"].astype(float).values
     logit_native = scores_df["logit_native"].astype(float).values
 
-    return {
+    result = {
         "z_delta": zscore(delta_ll),
         "z_abs": zscore(abs_ll),
         "z_entropy": zscore(-entropy),  # negate: lower entropy = better
         "z_logit": zscore(logit_native),
     }
+
+    # Position-specific features (v4): NaN for WT rows → fill with 0 (neutral)
+    if "entropy_at_site" in scores_df.columns:
+        eas = scores_df["entropy_at_site"].astype(float).values
+        nls = scores_df["native_ll_at_site"].astype(float).values
+        # Fill NaN (WT rows) with column mean so z-score maps them to ~0
+        eas_filled = np.where(np.isnan(eas), np.nanmean(eas), eas)
+        nls_filled = np.where(np.isnan(nls), np.nanmean(nls), nls)
+        result["z_entropy_at_site"] = zscore(-eas_filled)  # negate: conserved position → riskier
+        result["z_native_ll_at_site"] = zscore(nls_filled)  # higher native LL → more conserved → riskier
+        result["has_site_features"] = True
+    else:
+        result["has_site_features"] = False
+
+    return result
 
 
 def compute_activity_1(plm, mut_feats):
@@ -93,18 +110,31 @@ def compute_activity_1(plm, mut_feats):
       → increase deprotonated fraction → maintain activity at suboptimal pH
     - Stability matters more when enzyme operates below its optimum
 
-    Strategy: Moderate fitness weight + negative charge benefit + stability proxies.
+    v4: Added position-specific entropy (conserved site → riskier mutation).
+    Strategy: Moderate fitness weight + site conservation + negative charge + stability.
     """
     delta_charge = mut_feats["delta_charge"].values
 
-    score = (
-        0.35 * plm["z_delta"]           # mutation tolerance (reduced — less predictive at suboptimal pH)
-        + 0.25 * plm["z_abs"]           # foldability (stability matters more at suboptimal pH)
-        + 0.10 * plm["z_entropy"]       # conservation
-        + 0.10 * plm["z_logit"]         # confidence
-        + 0.10 * zscore(-delta_charge)  # negative charge may lower catalytic His pKa → maintain activity
-        + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability: penalize large hydro changes
-    )
+    if plm.get("has_site_features"):
+        score = (
+            0.30 * plm["z_delta"]           # mutation tolerance (reduced to make room for site features)
+            + 0.25 * plm["z_abs"]           # foldability (stability matters more at suboptimal pH)
+            + 0.10 * plm["z_entropy"]       # conservation (between-WT)
+            + 0.10 * plm["z_logit"]         # confidence
+            + 0.05 * plm["z_entropy_at_site"]  # NEW: conserved position → riskier mutation
+            + 0.10 * zscore(-delta_charge)  # negative charge may lower catalytic His pKa
+            + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
+        )
+    else:
+        # Fallback: v3 weights (no site features available)
+        score = (
+            0.35 * plm["z_delta"]
+            + 0.25 * plm["z_abs"]
+            + 0.10 * plm["z_entropy"]
+            + 0.10 * plm["z_logit"]
+            + 0.10 * zscore(-delta_charge)
+            + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)
+        )
     return score
 
 
@@ -120,19 +150,31 @@ def compute_activity_2(plm, mut_feats):
       * PET surface is more negative at alkaline pH → positive charges aid binding
       * HotPETase maintains activity at pH 9.2 (Bell 2022)
 
-    Strategy: Fitness-dominated + positive charge for PET binding/salt bridges.
-    Opposite charge direction from act1 maximizes differentiation.
+    v4: Added position-specific entropy (conserved site → riskier mutation).
+    Strategy: Fitness-dominated + site conservation + positive charge + stability.
     """
     delta_charge = mut_feats["delta_charge"].values
 
-    score = (
-        0.45 * plm["z_delta"]           # mutation tolerance (dominant at optimal pH)
-        + 0.20 * plm["z_abs"]           # foldability
-        + 0.10 * plm["z_entropy"]       # conservation
-        + 0.10 * plm["z_logit"]         # confidence
-        + 0.10 * zscore(delta_charge)   # positive charge helps at alkaline pH (PET binding, salt bridges)
-        + 0.05 * zscore(-mut_feats["abs_delta_hydro"].values)  # mild stability
-    )
+    if plm.get("has_site_features"):
+        score = (
+            0.40 * plm["z_delta"]           # mutation tolerance (dominant at optimal pH)
+            + 0.20 * plm["z_abs"]           # foldability
+            + 0.10 * plm["z_entropy"]       # conservation (between-WT)
+            + 0.05 * plm["z_logit"]         # confidence
+            + 0.05 * plm["z_entropy_at_site"]  # NEW: conserved position → riskier mutation
+            + 0.10 * zscore(delta_charge)   # positive charge helps at alkaline pH
+            + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
+        )
+    else:
+        # Fallback: v3 weights
+        score = (
+            0.45 * plm["z_delta"]
+            + 0.20 * plm["z_abs"]
+            + 0.10 * plm["z_entropy"]
+            + 0.10 * plm["z_logit"]
+            + 0.10 * zscore(delta_charge)
+            + 0.05 * zscore(-mut_feats["abs_delta_hydro"].values)
+        )
     return score
 
 
@@ -293,9 +335,9 @@ def main():
     print("\nSubmission saved to %s" % OUTPUT_CSV)
 
     # Summary
-    print("\n=== Submission Summary (v3 — pH-corrected) ===")
+    print("\n=== Submission Summary (v4 — position-specific features) ===")
     print("Models: %s" % ", ".join(models_used))
-    print("Features: PLM scores + CDS (GC, rare codons) + AA properties (hydro, charge)")
+    print("Features: PLM scores + position-specific (entropy_at_site) + CDS + AA properties")
     print("Sequences: %d" % n_test)
     for name, arr in [("activity_1", activity_1), ("activity_2", activity_2),
                       ("expression", expression)]:
