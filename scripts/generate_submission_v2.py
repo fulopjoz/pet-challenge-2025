@@ -51,6 +51,7 @@ TEST_CSV = os.path.join(DATA_DIR, "predictive-pet-zero-shot-test-2025.csv")
 ESM2_SCORES = os.path.join(RESULTS_DIR, "esm2_scores.csv")
 ESMC_SCORES = os.path.join(RESULTS_DIR, "esmc_scores.csv")
 MUTATION_FEATURES = os.path.join(RESULTS_DIR, "mutation_features.csv")
+PKA_TEST_FEATURES = os.path.join(RESULTS_DIR, "pka_features_test.csv")
 OUTPUT_CSV = os.path.join(RESULTS_DIR, "submission_zero_shot_v2.csv")
 
 
@@ -129,10 +130,27 @@ def compute_plm_scores(scores_df):
     else:
         result["has_site_features"] = False
 
+    # ESM2 embedding cosine distance to WT (Step 2.4)
+    # Only useful when actual per-mutant embeddings are computed (separate forward passes).
+    # If all values are constant (e.g., all 0.0 or all NaN), fall back to z_logit.
+    if "emb_cosine_dist_to_wt" in scores_df.columns:
+        ecd = scores_df["emb_cosine_dist_to_wt"].astype(float).values
+        ecd_valid = ecd[~np.isnan(ecd)]
+        if len(ecd_valid) > 0 and np.std(ecd_valid) > 1e-10:
+            ecd_mean = np.nanmean(ecd)
+            ecd_filled = np.where(np.isnan(ecd), ecd_mean, ecd)
+            result["z_emb_dist"] = zscore(-ecd_filled)  # closer to WT = higher
+            result["has_emb_dist"] = True
+        else:
+            # No variance in distances — feature is degenerate, fall back to z_logit
+            result["has_emb_dist"] = False
+    else:
+        result["has_emb_dist"] = False
+
     return result
 
 
-def compute_activity_1(plm, mut_feats):
+def compute_activity_1(plm, mut_feats, pka_feats=None):
     """
     Activity at pH 5.5 — suboptimal pH, enzyme below alkaline optimum.
 
@@ -143,22 +161,43 @@ def compute_activity_1(plm, mut_feats):
     - Stability matters more when enzyme operates below its optimum
 
     v4: Added position-specific entropy (conserved site → riskier mutation).
-    Strategy: Moderate fitness weight + site conservation + negative charge + stability.
+    v5: Added PROPKA-based protonation fraction at pH 5.5 (physics-based pKa).
+    Strategy: Moderate fitness weight + site conservation + negative charge + pKa + stability.
     """
     delta_charge = mut_feats["delta_charge"].values
 
     if plm.get("has_site_features"):
-        # v4 weights (sum=1.0): site features take weight from z_logit
-        score = (
-            0.30 * plm["z_delta"]               # mutation tolerance
-            + 0.25 * plm["z_abs"]               # foldability (stability matters at suboptimal pH)
-            + 0.10 * plm["z_entropy"]            # conservation (between-WT)
-            + 0.05 * plm["z_logit"]              # confidence (reduced from 0.10)
-            + 0.05 * plm["z_entropy_at_site"]    # conserved site → penalty (SIGN FIXED v4)
-            + 0.05 * plm["z_native_ll_at_site"]  # confident site → penalty (NEW v4)
-            + 0.10 * zscore(-delta_charge)        # negative charge lowers catalytic His pKa
-            + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
-        )
+        if pka_feats is not None:
+            # v5 weights (sum=1.0): pKa takes 0.05 from charge heuristic
+            z_pka = zscore(pka_feats["proton_frac_his_pH55"].values)
+            score = (
+                0.30 * plm["z_delta"]               # mutation tolerance
+                + 0.25 * plm["z_abs"]               # foldability
+                + 0.10 * plm["z_entropy"]            # conservation (between-WT)
+                + 0.025 * plm["z_logit"]             # confidence (reduced for emb_dist)
+                + 0.05 * plm["z_entropy_at_site"]    # conserved site → penalty
+                + 0.05 * plm["z_native_ll_at_site"]  # confident site → penalty
+                + 0.05 * zscore(-delta_charge)        # charge heuristic (reduced from 0.10)
+                + 0.05 * z_pka                        # physics-based pH 5.5 protonation
+                + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
+            )
+            # Add embedding distance if available (takes 0.025 from z_logit)
+            if plm.get("has_emb_dist"):
+                score += 0.025 * plm["z_emb_dist"]
+            else:
+                score += 0.025 * plm["z_logit"]  # fallback to z_logit
+        else:
+            # v4 weights (sum=1.0): site features, no pKa
+            score = (
+                0.30 * plm["z_delta"]
+                + 0.25 * plm["z_abs"]
+                + 0.10 * plm["z_entropy"]
+                + 0.05 * plm["z_logit"]
+                + 0.05 * plm["z_entropy_at_site"]
+                + 0.05 * plm["z_native_ll_at_site"]
+                + 0.10 * zscore(-delta_charge)
+                + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)
+            )
     else:
         # Fallback: v3 weights (no site features available)
         score = (
@@ -172,7 +211,7 @@ def compute_activity_1(plm, mut_feats):
     return score
 
 
-def compute_activity_2(plm, mut_feats):
+def compute_activity_2(plm, mut_feats, pka_feats=None):
     """
     Activity at pH 9.0 — near-optimal pH, fitness dominates.
 
@@ -185,22 +224,43 @@ def compute_activity_2(plm, mut_feats):
       * HotPETase maintains activity at pH 9.2 (Bell 2022)
 
     v4: Added position-specific entropy (conserved site → riskier mutation).
-    Strategy: Fitness-dominated + site conservation + positive charge + stability.
+    v5: Added PROPKA-based protonation fraction at pH 9.0 (physics-based pKa).
+    Strategy: Fitness-dominated + site conservation + positive charge + pKa + stability.
     """
     delta_charge = mut_feats["delta_charge"].values
 
     if plm.get("has_site_features"):
-        # v4 weights (sum=1.0): site features added, z_delta reduced from 0.40
-        score = (
-            0.35 * plm["z_delta"]               # mutation tolerance (dominant at optimal pH)
-            + 0.20 * plm["z_abs"]               # foldability
-            + 0.10 * plm["z_entropy"]            # conservation (between-WT)
-            + 0.05 * plm["z_logit"]              # confidence
-            + 0.05 * plm["z_entropy_at_site"]    # conserved site → penalty (SIGN FIXED v4)
-            + 0.05 * plm["z_native_ll_at_site"]  # confident site → penalty (NEW v4)
-            + 0.10 * zscore(delta_charge)         # positive charge helps at alkaline pH
-            + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
-        )
+        if pka_feats is not None:
+            # v5 weights (sum=1.0): pKa takes 0.05 from charge heuristic
+            z_pka = zscore(pka_feats["proton_frac_his_pH90"].values)
+            score = (
+                0.35 * plm["z_delta"]               # mutation tolerance (dominant)
+                + 0.20 * plm["z_abs"]               # foldability
+                + 0.10 * plm["z_entropy"]            # conservation (between-WT)
+                + 0.025 * plm["z_logit"]             # confidence (reduced for emb_dist)
+                + 0.05 * plm["z_entropy_at_site"]    # conserved site → penalty
+                + 0.05 * plm["z_native_ll_at_site"]  # confident site → penalty
+                + 0.05 * zscore(delta_charge)         # charge heuristic (reduced from 0.10)
+                + 0.05 * z_pka                        # physics-based pH 9.0 protonation
+                + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
+            )
+            # Add embedding distance if available (takes 0.025 from z_logit)
+            if plm.get("has_emb_dist"):
+                score += 0.025 * plm["z_emb_dist"]
+            else:
+                score += 0.025 * plm["z_logit"]
+        else:
+            # v4 weights (sum=1.0): site features, no pKa
+            score = (
+                0.35 * plm["z_delta"]
+                + 0.20 * plm["z_abs"]
+                + 0.10 * plm["z_entropy"]
+                + 0.05 * plm["z_logit"]
+                + 0.05 * plm["z_entropy_at_site"]
+                + 0.05 * plm["z_native_ll_at_site"]
+                + 0.10 * zscore(delta_charge)
+                + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)
+            )
     else:
         # Fallback: v3 weights
         score = (
@@ -311,6 +371,27 @@ def main():
 
     print("Loaded mutation features (CDS + AA properties)")
 
+    # Load pKa features (optional — from PROPKA analysis)
+    pka_feats = None
+    if os.path.exists(PKA_TEST_FEATURES):
+        pka_feats_raw = pd.read_csv(PKA_TEST_FEATURES)
+        if len(pka_feats_raw) == n_test:
+            # Fill NaN pKa values with column means for z-scoring
+            for col in ["proton_frac_his_pH55", "proton_frac_his_pH90",
+                        "catalytic_his_pka", "delta_protonation_his"]:
+                if col in pka_feats_raw.columns:
+                    col_mean = pka_feats_raw[col].mean()
+                    if np.isnan(col_mean):
+                        col_mean = 0.0
+                    pka_feats_raw[col] = pka_feats_raw[col].fillna(col_mean)
+            pka_feats = pka_feats_raw
+            print("Loaded pKa features (PROPKA) — physics-based pH scoring enabled")
+        else:
+            print("WARNING: pKa feature count mismatch (%d vs %d), ignoring" % (
+                len(pka_feats_raw), n_test))
+    else:
+        print("NOTE: pKa features not found at %s — using charge heuristic only" % PKA_TEST_FEATURES)
+
     # Collect per-model predictions
     activity1_preds = []
     activity2_preds = []
@@ -323,8 +404,8 @@ def main():
         print("Loading ESM2 scores from %s" % ESM2_SCORES)
         esm2 = load_scores_aligned(ESM2_SCORES, "ESM2", n_test)
         plm = compute_plm_scores(esm2)
-        activity1_preds.append(compute_activity_1(plm, mut_feats))
-        activity2_preds.append(compute_activity_2(plm, mut_feats))
+        activity1_preds.append(compute_activity_1(plm, mut_feats, pka_feats))
+        activity2_preds.append(compute_activity_2(plm, mut_feats, pka_feats))
         expression_preds.append(compute_expression(plm, mut_feats))
         models_used.append("ESM2-650M")
         n_mutations = esm2["n_mutations"].astype(int).values
@@ -336,8 +417,8 @@ def main():
         print("Loading ESMC scores from %s" % ESMC_SCORES)
         esmc = load_scores_aligned(ESMC_SCORES, "ESMC", n_test)
         plm = compute_plm_scores(esmc)
-        activity1_preds.append(compute_activity_1(plm, mut_feats))
-        activity2_preds.append(compute_activity_2(plm, mut_feats))
+        activity1_preds.append(compute_activity_1(plm, mut_feats, pka_feats))
+        activity2_preds.append(compute_activity_2(plm, mut_feats, pka_feats))
         expression_preds.append(compute_expression(plm, mut_feats))
         models_used.append("ESMC-600M")
         esmc_n_mut = esmc["n_mutations"].astype(int).values
@@ -381,9 +462,13 @@ def main():
     print("\nSubmission saved to %s" % OUTPUT_CSV)
 
     # Summary
-    print("\n=== Submission Summary (v4 — position-specific features) ===")
+    version = "v5 — pKa + embeddings" if pka_feats is not None else "v4 — position-specific features"
+    print("\n=== Submission Summary (%s) ===" % version)
     print("Models: %s" % ", ".join(models_used))
-    print("Features: PLM scores + position-specific (entropy_at_site, native_ll_at_site) + CDS + AA properties")
+    feat_list = "PLM scores + position-specific (entropy_at_site, native_ll_at_site) + CDS + AA properties"
+    if pka_feats is not None:
+        feat_list += " + PROPKA pKa (protonation fractions)"
+    print("Features: %s" % feat_list)
     print("Sequences: %d" % n_test)
     for name, arr in [("activity_1", activity_1), ("activity_2", activity_2),
                       ("expression", expression)]:

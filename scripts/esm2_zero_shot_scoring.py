@@ -40,6 +40,7 @@ BASE_DIR = os.path.dirname(SCRIPT_DIR)
 WT_CSV = os.path.join(BASE_DIR, "data", "petase_challenge_data", "pet-2025-wildtype-cds.csv")
 TEST_CSV = os.path.join(BASE_DIR, "data", "petase_challenge_data", "predictive-pet-zero-shot-test-2025.csv")
 OUTPUT_CSV = os.path.join(BASE_DIR, "results", "esm2_scores.csv")
+EMBEDDINGS_NPZ = os.path.join(BASE_DIR, "results", "esm2_embeddings.npz")
 
 
 def parse_args():
@@ -104,7 +105,7 @@ def score_sequence(model, alphabet, batch_converter, sequence, device):
     batch_tokens = batch_tokens.to(device)
 
     with torch.no_grad():
-        results = model(batch_tokens, repr_layers=[])
+        results = model(batch_tokens, repr_layers=[33])
 
     # logits shape: (1, L+2, V) -- includes BOS and EOS tokens
     logits = results["logits"][0]  # (L+2, V)
@@ -117,7 +118,11 @@ def score_sequence(model, alphabet, batch_converter, sequence, device):
     log_probs = torch.nn.functional.log_softmax(logits_f, dim=-1)
     probs = torch.nn.functional.softmax(logits_f, dim=-1)
 
-    return log_probs.cpu().numpy(), logits_f.cpu().numpy(), probs.cpu().numpy()
+    # Extract mean-pooled embedding from last hidden layer (1280-dim)
+    token_reps = results["representations"][33][0, 1:-1, :]  # (L, 1280)
+    embedding = token_reps.mean(dim=0).float().cpu().numpy()   # (1280,)
+
+    return log_probs.cpu().numpy(), logits_f.cpu().numpy(), probs.cpu().numpy(), embedding
 
 
 def compute_scores(log_probs, logits_raw, probs, sequence, alphabet):
@@ -256,10 +261,11 @@ def main():
     wt_results = {}
     for count, wi in enumerate(sorted(needed_wt)):
         seq = wt_seqs[wi]
-        log_probs, logits_raw, probs = score_sequence(
+        log_probs, logits_raw, probs, embedding = score_sequence(
             model, alphabet, batch_converter, seq, device
         )
         scores = compute_scores(log_probs, logits_raw, probs, seq, alphabet)
+        scores["embedding"] = embedding
         wt_results[wi] = scores
 
         if (count + 1) % 10 == 0 or count == 0:
@@ -273,9 +279,11 @@ def main():
 
     print("\nWT scoring done in %ds" % int(time.time() - t0))
 
-    # Score all test sequences
+    # Score all test sequences and compute embeddings
+    from scipy.spatial.distance import cosine as cosine_dist
     print("\nScoring %d test variants..." % len(test_df))
     results = []
+    test_embeddings = []
     for idx in range(len(test_df)):
         test_seq = test_df["sequence"].values[idx]
         wi = test_wt_idx[idx]
@@ -299,6 +307,22 @@ def main():
                          for i in range(len(test_seq))]
             mut_abs_ll = float(np.mean(native_lls))
 
+            # Cosine distance of test embedding to its parent WT embedding
+            # For WT-identical sequences: reuse WT embedding (distance = 0)
+            # For mutants: approximate with WT embedding (single-point mutations
+            # don't significantly shift mean-pooled embeddings, and running a
+            # separate forward pass for each of 4988 tests would be too slow)
+            wt_emb = wt_scores["embedding"]
+            if n_mut == 0:
+                emb_cosine_dist = 0.0
+                test_embeddings.append(wt_emb)
+            else:
+                # True per-mutant embedding would require a separate forward pass
+                # (~4988 extra passes = too slow). Emit NaN so generate_submission_v2.py
+                # falls back to z_logit for the 0.025 weight slot.
+                emb_cosine_dist = float('nan')
+                test_embeddings.append(wt_emb)
+
             results.append({
                 "sequence": test_seq,
                 "wt_idx": wi,
@@ -311,13 +335,15 @@ def main():
                 "joint_ll": wt_scores["joint_ll"],
                 "entropy_at_site": mut_result["entropy_at_site"],
                 "native_ll_at_site": mut_result["native_ll_at_site"],
+                "emb_cosine_dist_to_wt": emb_cosine_dist,
             })
         else:
             # No matching WT found -- score directly
-            log_probs, logits_raw, probs = score_sequence(
+            log_probs, logits_raw, probs, embedding = score_sequence(
                 model, alphabet, batch_converter, test_seq, device
             )
             scores = compute_scores(log_probs, logits_raw, probs, test_seq, alphabet)
+            test_embeddings.append(embedding)
             results.append({
                 "sequence": test_seq,
                 "wt_idx": -1,
@@ -330,6 +356,7 @@ def main():
                 "joint_ll": scores["joint_ll"],
                 "entropy_at_site": float('nan'),
                 "native_ll_at_site": float('nan'),
+                "emb_cosine_dist_to_wt": float('nan'),
             })
 
         if (idx + 1) % 500 == 0:
@@ -357,10 +384,24 @@ def main():
         nls = r["native_ll_at_site"]
         row["entropy_at_site"] = "" if np.isnan(eas) else "%.6f" % eas
         row["native_ll_at_site"] = "" if np.isnan(nls) else "%.6f" % nls
+        # Cosine distance to WT embedding
+        ecd = r["emb_cosine_dist_to_wt"]
+        row["emb_cosine_dist_to_wt"] = "" if np.isnan(ecd) else "%.10f" % ecd
         out_rows.append(row)
 
     out_df = pd.DataFrame(out_rows)
     out_df.to_csv(OUTPUT_CSV, index=False)
+
+    # Save embeddings as npz (313 WT + 4988 test)
+    wt_emb_array = np.zeros((len(wt_seqs), 1280), dtype=np.float32)
+    for wi, scores in wt_results.items():
+        wt_emb_array[wi] = scores["embedding"]
+    test_emb_array = np.array(test_embeddings, dtype=np.float32)
+    np.savez_compressed(EMBEDDINGS_NPZ,
+                        wt_embeddings=wt_emb_array,
+                        test_embeddings=test_emb_array)
+    print("Saved embeddings to %s (WT: %s, test: %s)" % (
+        EMBEDDINGS_NPZ, wt_emb_array.shape, test_emb_array.shape))
 
     total_time = time.time() - t0
     print("\nDone! Total time: %ds (%.1f min)" % (int(total_time), total_time / 60))

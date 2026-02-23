@@ -199,6 +199,75 @@ def save_feature_importance(rf, feature_names, output_path):
     print(f"Saved feature importance to {output_path}")
 
 
+def train_embedding_baseline(embeddings_path, tms_path):
+    """
+    Train Ridge on ESM2 mean-pooled embeddings for Tm prediction.
+    Uses PCA to reduce 1280-dim to n_components that fit small n.
+    Compares R² vs hand-crafted feature baseline (0.379, Spearman 0.643).
+    """
+    from sklearn.decomposition import PCA
+
+    print("\n" + "=" * 60)
+    print("ESM2 EMBEDDING BASELINE (PCA + Ridge)")
+    print("=" * 60)
+
+    embs = np.load(embeddings_path)
+    tms = np.load(tms_path)
+    print("Loaded: %d embeddings (%d-dim), %d Tm values" % (
+        embs.shape[0], embs.shape[1], len(tms)))
+
+    # Deduplicate by embedding (same sequence → same embedding)
+    unique_map = {}
+    for i in range(len(embs)):
+        key = tuple(embs[i].round(6).tolist()[:20])  # first 20 dims as key
+        unique_map.setdefault(key, []).append(i)
+
+    X_dedup, y_dedup = [], []
+    for key, idxs in unique_map.items():
+        X_dedup.append(embs[idxs[0]])
+        y_dedup.append(float(np.mean([tms[i] for i in idxs])))
+
+    X = np.array(X_dedup)
+    y = np.array(y_dedup)
+    n = len(y)
+    print("After deduplication: %d unique samples" % n)
+
+    if n < 4:
+        print("Too few samples for embedding baseline. Skipping.")
+        return
+
+    # PCA: n_components <= n-1
+    n_pca = min(5, n - 1)
+    print("PCA: %d -> %d components" % (X.shape[1], n_pca))
+    pca = PCA(n_components=n_pca)
+
+    # Ridge with LOOCV
+    ridge = make_pipeline(pca, StandardScaler(), Ridge(alpha=10.0))
+    loo = LeaveOneOut()
+    y_pred_loo = cross_val_predict(ridge, X, y, cv=loo)
+
+    rmse_loo = np.sqrt(mean_squared_error(y, y_pred_loo))
+    r2_loo = r2_score(y, y_pred_loo)
+    target_range = y.max() - y.min()
+
+    print("\nLOOCV Metrics (ESM2 embeddings):")
+    print("  RMSE: %.2f C" % rmse_loo)
+    print("  R2:   %.3f" % r2_loo)
+    print("  RMSE / range: %.1f%%" % (rmse_loo / target_range * 100))
+
+    if n > 2:
+        spearman, pval = spearmanr(y, y_pred_loo)
+        print("  Spearman rho: %.3f (p=%.4f)" % (spearman, pval))
+
+    print("\nComparison with hand-crafted feature baseline:")
+    print("  Hand-crafted: R2=0.379, Spearman=0.643, RMSE=8.33 C")
+    print("  ESM2 embed:   R2=%.3f, RMSE=%.2f C" % (r2_loo, rmse_loo))
+    if r2_loo > 0.379:
+        print("  --> ESM2 embeddings OUTPERFORM hand-crafted features")
+    else:
+        print("  --> Hand-crafted features still better (expected for n=%d)" % n)
+
+
 def main():
     """Main training pipeline"""
     print("=" * 60)
@@ -258,6 +327,15 @@ def main():
               "acceptable" if ridge_rmse / target_range < 0.30 else "poor"
     print(f"\nModel quality: {quality} (RMSE/range = {ridge_rmse/target_range*100:.1f}%)")
     print("  <15%: good, 15-30%: acceptable, >30%: poor")
+
+    # ESM2 embedding baseline (if embeddings available)
+    emb_path = project_dir / 'data' / 'esm2_embeddings.npy'
+    tms_path = project_dir / 'data' / 'esm2_tms.npy'
+    if emb_path.exists() and tms_path.exists():
+        train_embedding_baseline(str(emb_path), str(tms_path))
+    else:
+        print("\n[Embedding baseline] Skipping: %s or %s not found" % (emb_path, tms_path))
+        print("  Run: python scripts/extract_esm_embeddings.py first")
 
     print("\nBASELINE TRAINING COMPLETE")
     print("=" * 60)

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Extract ESM embeddings from PETase sequences.
-Uses ESM-1b (650M params, 1280-dim embeddings).
+Extract ESM2 embeddings from PETase sequences.
+Uses ESM2-650M (esm2_t33_650M_UR50D, 1280-dim embeddings).
 
-Requires: torch (use oepython env which has torch 2.7.0)
+Updated from ESM-1b to ESM2 for consistency with zero-shot scoring pipeline.
+
+Requires: torch, fair-esm
 Run: python scripts/extract_esm_embeddings.py
-
-Note: This script requires fair-esm. Install with:
-  pip install fair-esm
 """
 
 import sys
@@ -28,9 +27,9 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent))
 from feature_extraction import WT_SEQUENCE, apply_mutation, parse_mutation_positions
 
-# Load ESM model (cached after first download)
-print("Loading ESM-1b model...")
-model, alphabet = esm.pretrained.esm1b_t33_650M_UR50S()
+# Load ESM2 model (cached after first download)
+print("Loading ESM2-650M model...")
+model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
 batch_converter = alphabet.get_batch_converter()
 
 # Set model to inference mode
@@ -139,10 +138,10 @@ def extract_all_embeddings(mutations_csv, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    emb_path = output_dir / 'esm_embeddings.npy'
-    delta_path = output_dir / 'esm_delta_embeddings.npy'
-    names_path = output_dir / 'esm_variant_names.txt'
-    tms_path = output_dir / 'esm_tms.npy'
+    emb_path = output_dir / 'esm2_embeddings.npy'
+    delta_path = output_dir / 'esm2_delta_embeddings.npy'
+    names_path = output_dir / 'esm2_variant_names.txt'
+    tms_path = output_dir / 'esm2_tms.npy'
 
     np.save(emb_path, np.array(embeddings))
     np.save(delta_path, np.array(delta_embeddings))

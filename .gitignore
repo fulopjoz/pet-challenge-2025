@@ -1,8 +1,14 @@
 # Large PDF papers (copyrighted, do not distribute)
 data/validation/*.pdf
 
-# Model pickle files (re-generate with scripts)
+# Model files (re-generate with scripts)
 results/*.pkl
+
+# Large generated files (re-generate with scripts)
+results/structures/
+results/*.npz
+results/*.npy
+results/*.png
 
 # Python cache
 __pycache__/
