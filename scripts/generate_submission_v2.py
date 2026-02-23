@@ -5,8 +5,9 @@ Generate PET Challenge 2025 Enhanced Zero-Shot Submission (v2)
 Improvements over v1:
   1. Expression scoring uses CDS features (GC 5', rare codons) for scaffold-level
      differentiation + AA property changes for mutation-level signal
-  2. pH 9.0 activity scoring incorporates charge changes (literature: electrostatic
-     surface charge matters more at alkaline pH; N233K in FAST-PETase)
+  2. pH-aware activity scoring: opposite charge directions for act1 vs act2
+     - act1 (pH 5.5, suboptimal): negative charge lowers catalytic His pKa → maintains activity
+     - act2 (pH 9.0, near-optimal): positive charge helps PET binding + salt bridges
   3. PLM features are properly decomposed: within-WT ranking uses delta_ll,
      between-WT ranking uses abs_ll/entropy/logit_native + CDS features
 
@@ -15,9 +16,12 @@ across all single-point variants. Only delta_ll and abs_ll vary per mutation.
 This means expression ranking within a WT was effectively just delta_ll in v1.
 
 Literature basis:
+  - Charlier 2024 (Biophys J): NMR titration of catalytic His242, pKa = 4.90 ± 0.05
+  - pH 5.5: His ~80% deprotonated (suboptimal); negative charge can lower His pKa
+  - pH 9.0: His >99.9% deprotonated (near-optimal); fitness dominates
+  - Lu 2022 (Nature): FAST-PETase N233K beneficial salt bridge at alkaline pH
+  - Bell 2022 (Nature Catalysis): HotPETase maintains activity at pH 9.2
   - Expression: Codons 2-8 dominate E. coli expression (Cambray 2018, r=0.762)
-  - pH 9.0: Thermostable variants tolerate alkaline pH; charge mutations matter
-    (HotPETase at pH 9.2, Bell 2022; FAST-PETase N233K salt bridge, Lu 2022)
   - PLM scoring: WT-marginal delta_ll correlates with evolutionary fitness
     (Meier et al. 2021); rank correlation with masked marginal ≈1
 
@@ -81,46 +85,53 @@ def compute_plm_scores(scores_df):
 
 def compute_activity_1(plm, mut_feats):
     """
-    Activity at pH 5.5 — near physiological, standard PETase assay conditions.
-    delta_ll dominates (mutation tolerance = evolutionary fitness proxy).
-    Mild penalty for large hydrophobicity changes (destabilizing).
+    Activity at pH 5.5 — suboptimal pH, enzyme below alkaline optimum.
+
+    Literature basis (Charlier 2024, Hong 2023):
+    - Catalytic His pKa ~4.9 → ~80% deprotonated at pH 5.5 (~20-30% of max activity)
+    - Mutations adding negative charge can electrostatically lower His pKa
+      → increase deprotonated fraction → maintain activity at suboptimal pH
+    - Stability matters more when enzyme operates below its optimum
+
+    Strategy: Moderate fitness weight + negative charge benefit + stability proxies.
     """
+    delta_charge = mut_feats["delta_charge"].values
+
     score = (
-        0.50 * plm["z_delta"]
-        + 0.25 * plm["z_abs"]
-        + 0.10 * plm["z_entropy"]
-        + 0.10 * plm["z_logit"]
-        + 0.05 * zscore(-mut_feats["abs_delta_hydro"].values)  # penalize large changes
+        0.35 * plm["z_delta"]           # mutation tolerance (reduced — less predictive at suboptimal pH)
+        + 0.25 * plm["z_abs"]           # foldability (stability matters more at suboptimal pH)
+        + 0.10 * plm["z_entropy"]       # conservation
+        + 0.10 * plm["z_logit"]         # confidence
+        + 0.10 * zscore(-delta_charge)  # negative charge may lower catalytic His pKa → maintain activity
+        + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability: penalize large hydro changes
     )
     return score
 
 
 def compute_activity_2(plm, mut_feats):
     """
-    Activity at pH 9.0 — alkaline conditions, more demanding.
+    Activity at pH 9.0 — near-optimal pH, fitness dominates.
 
-    Literature basis (Bell 2022, Lu 2022):
-    - Thermostable variants maintain activity at alkaline pH better
-    - Charge mutations matter: N233K in FAST-PETase creates beneficial salt bridge
-    - LCCICCG: catalytic His pKa ~4.9, so pH 9.0 is well above — enzyme is active
-      but unfolding/charge effects become limiting
+    Literature basis (Charlier 2024, Lu 2022, Bell 2022):
+    - Catalytic His pKa ~4.9 → >99.9% deprotonated at pH 9.0 (enzyme at optimum)
+    - Evolutionary fitness (delta_ll) is the best predictor at optimal pH
+    - Positive charge additions help at alkaline pH:
+      * N233K in FAST-PETase creates beneficial salt bridge with E204 (Lu 2022)
+      * PET surface is more negative at alkaline pH → positive charges aid binding
+      * HotPETase maintains activity at pH 9.2 (Bell 2022)
 
-    Strategy: Upweight stability proxies + add charge feature.
-    Positive charge additions may help at pH 9.0 (electrostatic stabilization).
+    Strategy: Fitness-dominated + positive charge for PET binding/salt bridges.
+    Opposite charge direction from act1 maximizes differentiation.
     """
     delta_charge = mut_feats["delta_charge"].values
 
-    # At pH 9.0: positive charge additions help stability (salt bridges, surface)
-    # Normalize charge to z-score scale
-    z_charge_benefit = zscore(delta_charge)
-
     score = (
-        0.35 * plm["z_delta"]
-        + 0.25 * plm["z_abs"]
-        + 0.15 * plm["z_entropy"]
-        + 0.10 * plm["z_logit"]
-        + 0.10 * z_charge_benefit                                # charge helps at pH 9
-        + 0.05 * zscore(-mut_feats["abs_delta_hydro"].values)    # penalize large changes
+        0.45 * plm["z_delta"]           # mutation tolerance (dominant at optimal pH)
+        + 0.20 * plm["z_abs"]           # foldability
+        + 0.10 * plm["z_entropy"]       # conservation
+        + 0.10 * plm["z_logit"]         # confidence
+        + 0.10 * zscore(delta_charge)   # positive charge helps at alkaline pH (PET binding, salt bridges)
+        + 0.05 * zscore(-mut_feats["abs_delta_hydro"].values)  # mild stability
     )
     return score
 
@@ -282,7 +293,7 @@ def main():
     print("\nSubmission saved to %s" % OUTPUT_CSV)
 
     # Summary
-    print("\n=== Submission Summary (v2 Enhanced) ===")
+    print("\n=== Submission Summary (v3 — pH-corrected) ===")
     print("Models: %s" % ", ".join(models_used))
     print("Features: PLM scores + CDS (GC, rare codons) + AA properties (hydro, charge)")
     print("Sequences: %d" % n_test)
