@@ -1,4 +1,4 @@
-# PET Challenge 2025 — Zero-Shot Prediction Pipeline (v4)
+# PET Challenge 2025 - Zero-Shot Prediction Pipeline (v4)
 
 Predicting PETase enzyme **activity** and **expression** for 4988 variant sequences using protein language models (PLMs), CDS features, and amino acid property changes.
 
@@ -38,16 +38,16 @@ The v1 baseline (PLM-only, no CDS/mutation features) can still be generated with
 
 ### PLM Zero-Shot Scoring
 
-We use **wildtype-marginal scoring** (Meier et al. 2021) — one forward pass per WT scaffold, then score mutations from the WT log-probability distribution. No training data required.
+We use **wildtype-marginal scoring** (Meier et al. 2021) - one forward pass per WT scaffold, then score mutations from the WT log-probability distribution. No training data required.
 
 **Scores per sequence:**
-- `delta_ll` — log P(mut_aa) - log P(wt_aa) at mutation site (mutation effect)
-- `abs_ll` — mean log P(native_aa) over all positions (absolute fitness)
-- `entropy` — mean positional entropy (lower = more conserved)
-- `logit_native` — mean raw logit for native residue
-- `joint_ll` — joint log-likelihood over 20 standard AAs
-- `entropy_at_site` — positional entropy at the mutation site (v4)
-- `native_ll_at_site` — native log-probability at the mutation site (v4)
+- `delta_ll` - log P(mut_aa) - log P(wt_aa) at mutation site (mutation effect)
+- `abs_ll` - mean log P(native_aa) over all positions (absolute fitness)
+- `entropy` - mean positional entropy (lower = more conserved)
+- `logit_native` - mean raw logit for native residue
+- `joint_ll` - joint log-likelihood over 20 standard AAs
+- `entropy_at_site` - positional entropy at the mutation site (v4)
+- `native_ll_at_site` - native log-probability at the mutation site (v4)
 
 **Models:**
 - **ESM2-650M** (Meta, Lin et al. 2023): Gold standard for zero-shot variant effect prediction. Package: `fair-esm`
@@ -69,7 +69,7 @@ We use **wildtype-marginal scoring** (Meier et al. 2021) — one forward pass pe
 
 All features are z-score normalized. delta_ll is z-scored only among mutants (WTs get z_delta=0) to prevent WT over-dominance in rankings.
 
-**Activity 1 (pH 5.5)** — suboptimal pH, stability + negative charge matter:
+**Activity 1 (pH 5.5)** - suboptimal pH, stability + negative charge matter:
 ```
 0.30·z_delta + 0.25·z_abs + 0.10·z_entropy + 0.05·z_logit
 + 0.05·z_entropy_at_site + 0.05·z_native_ll_at_site
@@ -77,7 +77,7 @@ All features are z-score normalized. delta_ll is z-scored only among mutants (WT
 ```
 Rationale: At pH 5.5 the catalytic His (pKa ~4.9, Charlier 2024 on LCC) is ~80% deprotonated. Negative charge mutations can lower His pKa and maintain activity.
 
-**Activity 2 (pH 9.0)** — near-optimal pH, fitness dominates:
+**Activity 2 (pH 9.0)** - near-optimal pH, fitness dominates:
 ```
 0.35·z_delta + 0.20·z_abs + 0.10·z_entropy + 0.05·z_logit
 + 0.05·z_entropy_at_site + 0.05·z_native_ll_at_site
@@ -85,7 +85,7 @@ Rationale: At pH 5.5 the catalytic His (pKa ~4.9, Charlier 2024 on LCC) is ~80% 
 ```
 Rationale: At pH 9.0, His is >99.9% deprotonated. Positive charge aids PET binding at alkaline pH (Lu 2022, Bell 2022).
 
-**Expression (mg/mL)** — CDS structure + PLM foldability:
+**Expression (mg/mL)** - CDS structure + PLM foldability:
 ```
 0.30·z_delta + 0.15·z_abs + 0.10·z_entropy + 0.10·z_logit
 + 0.15·z(cds_at_5prime) + 0.10·z(-cds_rare_codon)
@@ -181,7 +181,7 @@ Ridge regression validated on **8 aggregated IsPETase Tm values** (LOOCV, from 1
 
 ## Notebook
 
-`PET_Challenge_2025_Pipeline_v2.ipynb` — full pipeline walkthrough designed for Google Colab (T4 GPU). Includes data exploration, PLM scoring, feature engineering, ML validation, submission generation, and diagnostics.
+`PET_Challenge_2025_Pipeline_v2.ipynb` - full pipeline walkthrough designed for Google Colab (T4 GPU). Includes data exploration, PLM scoring, feature engineering, ML validation, submission generation, and diagnostics.
 
 ## Challenge Details
 
@@ -194,18 +194,18 @@ Ridge regression validated on **8 aggregated IsPETase Tm values** (LOOCV, from 1
 
 ## References
 
-1. **Meier et al. (2021)** NeurIPS. DOI: 10.1101/2021.07.09.450648 — WT-marginal scoring method
-2. **Lin et al. (2023)** Science. DOI: 10.1126/science.ade2574 — ESM2
-3. **EvolutionaryScale (2024)** — ESMC (ESM Cambrian)
-4. **Nieuwkoop et al. (2023)** NAR, 51(5):2363-2376. PMID 36718935 — Codons 2-8 dominate E. coli expression (r=0.762)
-5. **Charlier et al. (2024)** Biophys J — NMR titration of catalytic His in LCC(ICCG), pKa=4.90
-6. **Lu et al. (2022)** Nature. DOI: 10.1038/s41586-022-04599-z — FAST-PETase
-7. **Bell et al. (2022)** Nature Catalysis — HotPETase, activity at alkaline pH
-8. **Brott et al. (2022)** Eng. Life Sci. DOI: 10.1002/elsc.202100105 — IsPETase Tm values (nanoDSF)
-9. **Son et al. (2019)** ACS Catal. DOI: 10.1021/acscatal.9b00568 — ThermoPETase
-10. **Cui et al. (2021)** ACS Catal. DOI: 10.1021/acscatal.0c05126 — DuraPETase
-11. **Kral (2025)** MSc Thesis, Charles University — Zero-shot PLM scoring methodology
-12. **Kudla et al. (2009)** Science — mRNA folding and gene expression in E. coli
+1. **Meier et al. (2021)** NeurIPS. DOI: 10.1101/2021.07.09.450648 - WT-marginal scoring method
+2. **Lin et al. (2023)** Science. DOI: 10.1126/science.ade2574 - ESM2
+3. **EvolutionaryScale (2024)** - ESMC (ESM Cambrian)
+4. **Nieuwkoop et al. (2023)** NAR, 51(5):2363-2376. PMID 36718935 - Codons 2-8 dominate E. coli expression (r=0.762)
+5. **Charlier et al. (2024)** Biophys J - NMR titration of catalytic His in LCC(ICCG), pKa=4.90
+6. **Lu et al. (2022)** Nature. DOI: 10.1038/s41586-022-04599-z - FAST-PETase
+7. **Bell et al. (2022)** Nature Catalysis - HotPETase, activity at alkaline pH
+8. **Brott et al. (2022)** Eng. Life Sci. DOI: 10.1002/elsc.202100105 - IsPETase Tm values (nanoDSF)
+9. **Son et al. (2019)** ACS Catal. DOI: 10.1021/acscatal.9b00568 - ThermoPETase
+10. **Cui et al. (2021)** ACS Catal. DOI: 10.1021/acscatal.0c05126 - DuraPETase
+11. **Kral (2025)** MSc Thesis, Charles University - Zero-shot PLM scoring methodology
+12. **Kudla et al. (2009)** Science - mRNA folding and gene expression in E. coli
 
 ## Folder Structure
 
