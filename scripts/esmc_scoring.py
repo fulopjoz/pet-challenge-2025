@@ -122,8 +122,9 @@ def score_sequence_esmc(model, sequence, device, aa_map):
         LogitsConfig(sequence=True, return_embeddings=False)
     )
 
-    # logits shape: (1, L+2, V) including BOS/EOS or (1, L, V) depending on version
-    logits = logits_output.logits
+    # logits_output.logits is a ForwardTrackData wrapper; the actual tensor
+    # is in the .sequence attribute: shape (1, L+2, V) including BOS/EOS
+    logits = logits_output.logits.sequence
     if logits.dim() == 3:
         logits = logits[0]  # remove batch dim -> (L+?, V)
 
