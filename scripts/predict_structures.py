@@ -5,13 +5,15 @@ Predict 3D structures for all 313 WT PETase sequences using ESMFold.
 ESMFold predicts structures directly from sequence (no MSA needed).
 Uses ~3-4GB VRAM for sequences up to ~400 aa. Fast: ~1-2 sec per sequence on T4.
 
+Uses HuggingFace transformers implementation (no openfold dependency).
+
 Important: Run AFTER ESM2 scoring (unload ESM2 first to free VRAM),
 or run in a separate Colab cell.
 
 Usage:
     python scripts/predict_structures.py [--cpu] [--max-seqs N]
 
-Requires: pip install fair-esm
+Requires: pip install transformers torch
 Output: results/structures/*.pdb (313 PDB files)
         results/structures/plddt_summary.csv (pLDDT confidence scores)
 """
@@ -41,21 +43,26 @@ def parse_args():
 
 
 def load_esmfold(device="auto"):
-    """Load ESMFold model."""
-    import esm
+    """Load ESMFold model via HuggingFace transformers (no openfold needed)."""
+    from transformers import AutoTokenizer, EsmForProteinFolding
 
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    print("Loading ESMFold-v1...")
-    model = esm.pretrained.esmfold_v1()
+    print("Loading ESMFold-v1 (HuggingFace transformers)...")
+    tokenizer = AutoTokenizer.from_pretrained("facebook/esmfold_v1")
+    model = EsmForProteinFolding.from_pretrained(
+        "facebook/esmfold_v1", low_cpu_mem_usage=True
+    )
     model.requires_grad_(False)
     model = model.eval()
 
     if device == "cuda":
         try:
             model = model.cuda()
-            print("ESMFold loaded on GPU")
+            # Use FP16 for the language model trunk to save VRAM
+            model.esm = model.esm.half()
+            print("ESMFold loaded on GPU (ESM trunk in FP16)")
         except RuntimeError as e:
             print("GPU failed (%s), using CPU" % e)
             model = model.cpu()
@@ -63,25 +70,60 @@ def load_esmfold(device="auto"):
     else:
         print("ESMFold on CPU (will be slow)")
 
-    return model, device
+    return model, tokenizer, device
 
 
-def predict_structure(model, sequence, device):
+def convert_outputs_to_pdb(output):
+    """Convert ESMFold model outputs to PDB string(s)."""
+    from transformers.models.esm.openfold_utils.protein import to_pdb, Protein as OFProtein
+    from transformers.models.esm.openfold_utils.feats import atom14_to_atom37
+
+    # Convert atom14 positions to atom37 format
+    final_atom_positions = atom14_to_atom37(output["positions"][-1], output)
+    final_atom_positions = final_atom_positions.cpu().numpy()
+
+    output_np = {}
+    for k, v in output.items():
+        if isinstance(v, torch.Tensor):
+            output_np[k] = v.cpu().numpy()
+
+    final_atom_mask = output_np["atom37_atom_exists"]
+
+    pdbs = []
+    for i in range(final_atom_positions.shape[0]):
+        pred = OFProtein(
+            aatype=output_np["aatype"][i],
+            atom_positions=final_atom_positions[i],
+            atom_mask=final_atom_mask[i],
+            residue_index=output_np["residue_index"][i] + 1,
+            b_factors=output_np["plddt"][i] * 100,  # Scale 0-1 to 0-100
+        )
+        pdbs.append(to_pdb(pred))
+    return pdbs
+
+
+def predict_structure(model, tokenizer, sequence, device):
     """
     Predict structure for a single sequence.
-    Returns PDB string and per-residue pLDDT scores.
+    Returns PDB string and per-residue pLDDT scores (0-100 scale).
     """
+    tokenized = tokenizer(
+        [sequence], return_tensors="pt", add_special_tokens=False
+    )
+    tokenized = {k: v.to(device) for k, v in tokenized.items()}
+
     with torch.no_grad():
-        output = model.infer_pdb(sequence)
+        output = model(**tokenized)
 
-    # Extract pLDDT from B-factor column of PDB
-    plddt_scores = []
-    for line in output.split("\n"):
-        if line.startswith("ATOM") and line[12:16].strip() == "CA":
-            bfactor = float(line[60:66].strip())
-            plddt_scores.append(bfactor)
+    # Extract pLDDT (0-1 scale from model, convert to 0-100)
+    plddt_01 = output["plddt"][0, :len(sequence)].cpu().numpy()
+    plddt_100 = plddt_01 * 100.0
 
-    return output, np.array(plddt_scores)
+    # Convert to PDB string
+    pdb_strings = convert_outputs_to_pdb(output)
+    pdb_str = pdb_strings[0]
+
+    return pdb_str, plddt_100
 
 
 def main():
@@ -99,7 +141,7 @@ def main():
 
     # Load model
     device_pref = "cpu" if args.cpu else "auto"
-    model, device = load_esmfold(device_pref)
+    model, tokenizer, device = load_esmfold(device_pref)
 
     # Create output directory
     os.makedirs(STRUCTURES_DIR, exist_ok=True)
@@ -129,7 +171,7 @@ def main():
             })
             continue
 
-        pdb_str, plddt = predict_structure(model, seq, device)
+        pdb_str, plddt = predict_structure(model, tokenizer, seq, device)
 
         with open(pdb_path, "w") as f:
             f.write(pdb_str)
