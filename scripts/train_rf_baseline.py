@@ -12,6 +12,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import LeaveOneOut, cross_val_score, cross_val_predict
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from scipy.stats import spearmanr
 import joblib
 
@@ -42,6 +44,40 @@ def load_features(input_path: str):
     return X, y, feature_names, variant_names
 
 
+def aggregate_duplicate_feature_rows(X, y, variant_names):
+    """
+    Collapse exact duplicate feature rows by averaging targets.
+
+    Duplicate sequence-level features with different Tm values can bias LOOCV.
+    """
+    groups = {}
+    for i, row in enumerate(X):
+        key = tuple(float(v) for v in row.tolist())
+        groups.setdefault(key, []).append(i)
+
+    if all(len(idxs) == 1 for idxs in groups.values()):
+        return X, y, variant_names
+
+    print("\nDetected duplicate feature vectors; aggregating by mean Tm:")
+    X_new, y_new, names_new = [], [], []
+    for key, idxs in groups.items():
+        X_new.append(list(key))
+        if len(idxs) == 1:
+            y_new.append(float(y[idxs[0]]))
+            names_new.append(variant_names[idxs[0]])
+        else:
+            tm_vals = [float(y[i]) for i in idxs]
+            merged_name = " / ".join(variant_names[i] for i in idxs)
+            print(f"  - {merged_name} -> mean Tm {np.mean(tm_vals):.2f} C (n={len(idxs)})")
+            y_new.append(float(np.mean(tm_vals)))
+            names_new.append(merged_name)
+
+    X_arr = np.array(X_new, dtype=float)
+    y_arr = np.array(y_new, dtype=float)
+    print(f"After aggregation: {len(y_arr)} unique samples (from {len(y)})")
+    return X_arr, y_arr, names_new
+
+
 def train_ridge_primary(X, y, feature_names, variant_names):
     """Train Ridge regression (primary model for small datasets)"""
     print("\n" + "=" * 60)
@@ -52,7 +88,7 @@ def train_ridge_primary(X, y, feature_names, variant_names):
     print(f"Target range: {y.min():.1f} - {y.max():.1f} C ({target_range:.1f} C span)")
 
     # LOOCV (gold standard for small n)
-    ridge = Ridge(alpha=1.0)
+    ridge = make_pipeline(StandardScaler(), Ridge(alpha=1.0))
     loo = LeaveOneOut()
 
     # Get LOOCV predictions for each sample
@@ -91,11 +127,12 @@ def train_ridge_primary(X, y, feature_names, variant_names):
 
     # Feature coefficients
     print(f"\nTop Ridge Coefficients (absolute):")
-    coef_abs = np.abs(ridge.coef_)
+    ridge_model = ridge.named_steps['ridge']
+    coef_abs = np.abs(ridge_model.coef_)
     indices = np.argsort(coef_abs)[::-1]
     for i in range(min(10, len(feature_names))):
         idx = indices[i]
-        print(f"  {i+1:2d}. {feature_names[idx]:25s} coef={ridge.coef_[idx]:+.4f}")
+        print(f"  {i+1:2d}. {feature_names[idx]:25s} coef={ridge_model.coef_[idx]:+.4f}")
 
     return ridge, rmse_loo, r2_loo
 
@@ -178,6 +215,7 @@ def main():
     # Load data
     print("\nLOADING DATA")
     X, y, feature_names, variant_names = load_features(feature_path)
+    X, y, variant_names = aggregate_duplicate_feature_rows(X, y, variant_names)
 
     n = len(y)
     if n < 15:

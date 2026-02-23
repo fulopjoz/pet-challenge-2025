@@ -36,6 +36,7 @@ batch_converter = alphabet.get_batch_converter()
 # Set model to inference mode
 for param in model.parameters():
     param.requires_grad = False
+model.eval()
 
 # Use GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

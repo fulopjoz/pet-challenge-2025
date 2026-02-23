@@ -23,6 +23,7 @@ import sys
 import os
 import time
 import csv
+import argparse
 import numpy as np
 import torch
 import pandas as pd
@@ -31,7 +32,6 @@ import pandas as pd
 
 MODEL_NAME = "esm2_t33_650M_UR50D"
 BATCH_SIZE = 1
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 USE_HALF = True  # float16 to save VRAM
 
 # Portable paths relative to this script
@@ -42,9 +42,23 @@ TEST_CSV = os.path.join(BASE_DIR, "data", "petase_challenge_data", "predictive-p
 OUTPUT_CSV = os.path.join(BASE_DIR, "results", "esm2_scores.csv")
 
 
-def load_model():
+def parse_args():
+    parser = argparse.ArgumentParser(description="ESM2 zero-shot scoring")
+    parser.add_argument("--cpu", action="store_true",
+                        help="Force CPU (skip GPU)")
+    parser.add_argument("--no-half", action="store_true",
+                        help="Disable float16 and use float32")
+    return parser.parse_args()
+
+
+def load_model(device_preference="auto", use_half=True):
     """Load ESM2-650M with fair-esm."""
     import esm
+    if device_preference == "auto":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = device_preference
+
     print("Loading %s..." % MODEL_NAME)
     model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
     batch_converter = alphabet.get_batch_converter()
@@ -53,19 +67,20 @@ def load_model():
     model.requires_grad_(False)
     for param in model.parameters():
         param.requires_grad = False
+    model.eval()
 
     # Try GPU first
-    if DEVICE == "cuda":
+    if device == "cuda":
         try:
-            if USE_HALF:
+            if use_half:
                 model = model.half()
-            model = model.to(DEVICE)
+            model = model.to(device)
             # Test with a short sequence
             _, _, test_tokens = batch_converter([("test", "ACDEFG")])
             with torch.no_grad():
-                model(test_tokens.to(DEVICE))
-            print("Model loaded on %s (half=%s)" % (DEVICE, USE_HALF))
-            return model, alphabet, batch_converter, DEVICE
+                model(test_tokens.to(device))
+            print("Model loaded on %s (half=%s)" % (device, use_half))
+            return model, alphabet, batch_converter, device
         except RuntimeError as e:
             print("GPU failed (%s), falling back to CPU" % e)
             model = model.float().cpu()
@@ -169,6 +184,7 @@ def score_mutation(wt_log_probs, wt_seq, mut_seq, alphabet):
 
 
 def main():
+    args = parse_args()
     t0 = time.time()
 
     # Load data
@@ -214,7 +230,12 @@ def main():
     print("  Need to score %d unique WTs" % len(needed_wt))
 
     # Load model
-    model, alphabet, batch_converter, device = load_model()
+    requested_device = "cpu" if args.cpu else "auto"
+    use_half = USE_HALF and (not args.no_half)
+    model, alphabet, batch_converter, device = load_model(
+        device_preference=requested_device,
+        use_half=use_half
+    )
 
     # Score all needed WTs
     print("\nScoring %d wild-type sequences on %s..." % (len(needed_wt), device))

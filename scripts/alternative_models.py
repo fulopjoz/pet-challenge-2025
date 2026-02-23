@@ -12,6 +12,8 @@ from sklearn.model_selection import LeaveOneOut, cross_val_predict
 from sklearn.linear_model import Ridge, Lasso, ElasticNet
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.pipeline import make_pipeline, Pipeline
+from sklearn.preprocessing import StandardScaler
 from scipy.stats import spearmanr
 
 try:
@@ -37,6 +39,36 @@ def load_features(input_path):
     print(f"Loaded {len(y)} samples, {X.shape[1]} features")
     print(f"Target range: {y.min():.1f} - {y.max():.1f} C")
     return X, y, feature_names, variant_names
+
+
+def aggregate_duplicate_feature_rows(X, y, variant_names):
+    """Collapse exact duplicate feature rows by averaging targets."""
+    groups = {}
+    for i, row in enumerate(X):
+        key = tuple(float(v) for v in row.tolist())
+        groups.setdefault(key, []).append(i)
+
+    if all(len(idxs) == 1 for idxs in groups.values()):
+        return X, y, variant_names
+
+    print("\nDetected duplicate feature vectors; aggregating by mean Tm:")
+    X_new, y_new, names_new = [], [], []
+    for key, idxs in groups.items():
+        X_new.append(list(key))
+        if len(idxs) == 1:
+            y_new.append(float(y[idxs[0]]))
+            names_new.append(variant_names[idxs[0]])
+        else:
+            tm_vals = [float(y[i]) for i in idxs]
+            merged_name = " / ".join(variant_names[i] for i in idxs)
+            print(f"  - {merged_name} -> mean Tm {np.mean(tm_vals):.2f} C (n={len(idxs)})")
+            y_new.append(float(np.mean(tm_vals)))
+            names_new.append(merged_name)
+
+    X_arr = np.array(X_new, dtype=float)
+    y_arr = np.array(y_new, dtype=float)
+    print(f"After aggregation: {len(y_arr)} unique samples (from {len(y)})")
+    return X_arr, y_arr, names_new
 
 
 def evaluate_model(name, model, X, y):
@@ -78,6 +110,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     X, y, feature_names, variant_names = load_features(feature_path)
+    X, y, variant_names = aggregate_duplicate_feature_rows(X, y, variant_names)
     n = len(y)
     target_range = y.max() - y.min()
 
@@ -93,32 +126,36 @@ def main():
     # 1. Ridge Regression
     print("\n1. RIDGE REGRESSION (alpha=1.0)")
     print("-" * 40)
-    r = evaluate_model('Ridge (alpha=1)', Ridge(alpha=1.0), X, y)
+    r = evaluate_model('Ridge (alpha=1)', make_pipeline(StandardScaler(), Ridge(alpha=1.0)), X, y)
     results.append(r)
     print(f"  LOOCV RMSE: {r['loocv_rmse']:.2f} C  R2: {r['loocv_r2']:.3f}")
 
     # 2. Ridge with higher regularization
     print("\n2. RIDGE REGRESSION (alpha=10)")
     print("-" * 40)
-    r = evaluate_model('Ridge (alpha=10)', Ridge(alpha=10.0), X, y)
+    r = evaluate_model('Ridge (alpha=10)', make_pipeline(StandardScaler(), Ridge(alpha=10.0)), X, y)
     results.append(r)
     print(f"  LOOCV RMSE: {r['loocv_rmse']:.2f} C  R2: {r['loocv_r2']:.3f}")
 
     # 3. Lasso
     print("\n3. LASSO REGRESSION (alpha=0.1)")
     print("-" * 40)
-    lasso = Lasso(alpha=0.1, max_iter=10000)
+    lasso = make_pipeline(StandardScaler(), Lasso(alpha=0.1, max_iter=10000))
     r = evaluate_model('Lasso (alpha=0.1)', lasso, X, y)
     results.append(r)
     lasso.fit(X, y)
-    n_features_used = np.sum(lasso.coef_ != 0)
+    n_features_used = np.sum(lasso.named_steps['lasso'].coef_ != 0)
     print(f"  LOOCV RMSE: {r['loocv_rmse']:.2f} C  R2: {r['loocv_r2']:.3f}")
     print(f"  Features used: {n_features_used}/{X.shape[1]}")
 
     # 4. Elastic Net
     print("\n4. ELASTIC NET (alpha=0.1, l1_ratio=0.5)")
     print("-" * 40)
-    r = evaluate_model('ElasticNet', ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=10000), X, y)
+    r = evaluate_model(
+        'ElasticNet',
+        make_pipeline(StandardScaler(), ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=10000)),
+        X, y
+    )
     results.append(r)
     print(f"  LOOCV RMSE: {r['loocv_rmse']:.2f} C  R2: {r['loocv_r2']:.3f}")
 
@@ -126,13 +163,19 @@ def main():
     k = min(10, X.shape[1], n - 1)
     print(f"\n5. FEATURE SELECTION + RIDGE (Top {k})")
     print("-" * 40)
-    selector = SelectKBest(score_func=f_regression, k=k)
-    X_selected = selector.fit_transform(X, y)
-    r = evaluate_model(f'Ridge+Top{k}', Ridge(alpha=1.0), X_selected, y)
+    fs_ridge = Pipeline([
+        ('scaler', StandardScaler()),
+        ('select', SelectKBest(score_func=f_regression, k=k)),
+        ('ridge', Ridge(alpha=1.0)),
+    ])
+    r = evaluate_model(f'Ridge+Top{k}', fs_ridge, X, y)
     results.append(r)
     print(f"  LOOCV RMSE: {r['loocv_rmse']:.2f} C  R2: {r['loocv_r2']:.3f}")
 
     # Show selected features
+    selector = SelectKBest(score_func=f_regression, k=k)
+    X_scaled = StandardScaler().fit_transform(X)
+    selector.fit(X_scaled, y)
     mask = selector.get_support()
     selected_features = [f for f, m in zip(feature_names, mask) if m]
     print(f"  Selected features: {', '.join(selected_features)}")

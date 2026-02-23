@@ -5,17 +5,19 @@ Extract Tm values from all downloaded PDFs
 
 import pdfplumber
 import csv
+from pathlib import Path
 
 # All extracted Tm values
 mutations = []
+BASE_DIR = Path(__file__).resolve().parent
 
 ## 1. Brott 2022 Supplementary Material
 print("="*60)
 print("Extracting from: Engineering and evaluation of thermostable IsPETase...")
 print("="*60)
 
-pdf_path = "Engineering and evaluation of thermostable IsPETase variants for PET degradation-sup-0001-suppmat.pdf"
-with pdfplumber.open(pdf_path) as pdf:
+pdf_path = BASE_DIR / "Engineering and evaluation of thermostable IsPETase variants for PET degradation-sup-0001-suppmat.pdf"
+with pdfplumber.open(str(pdf_path)) as pdf:
     # Table S2 on page 6
     page = pdf.pages[5]
     tables = page.extract_tables()
@@ -89,11 +91,14 @@ with pdfplumber.open(pdf_path) as pdf:
                                 continue
                         
                         # Clean variant name
+                        mutation = None
                         if 'WT' in variant:
                             mutation = 'WT'
                         elif 'TM' in variant:
                             # Extract mutations from IsPETaseTMN233C/S282C format
                             mutation = variant.replace('IsPETaseTM', '').replace('IsPETase', '')
+                        if not mutation:
+                            continue
                         
                         mutations.append({
                             'variant_name': f"Brott2022_Comparison_{variant}",
@@ -113,8 +118,8 @@ print("\n" + "="*60)
 print("Extracting from: Computational redesign of a PETase...")
 print("="*60)
 
-pdf_path = "Computational redesign of a PETase for plastic biodegradation_si_001.pdf"
-with pdfplumber.open(pdf_path) as pdf:
+pdf_path = BASE_DIR / "Computational redesign of a PETase for plastic biodegradation_si_001.pdf"
+with pdfplumber.open(str(pdf_path)) as pdf:
     for page_num, page in enumerate(pdf.pages):
         text = page.extract_text()
         if text and 'ΔT' in text and 'Table S4' in text:
@@ -163,12 +168,13 @@ if mutations:
     # Sort by tm (non-zero values first)
     mutations_sorted = sorted(mutations, key=lambda x: (x['tm'], x['delta_tm']), reverse=True)
     
-    with open('validation_mutations.csv', 'w', newline='') as f:
+    output_csv = BASE_DIR / 'validation_mutations.csv'
+    with open(output_csv, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['variant_name', 'mutation', 'enzyme', 'tm', 'tm_std', 'delta_tm', 'method', 'source', 'notes'])
         writer.writeheader()
         writer.writerows(mutations_sorted)
-    
-    print(f"\n✅ Saved {len(mutations_sorted)} mutations to validation_mutations.csv")
+
+    print(f"\n✅ Saved {len(mutations_sorted)} mutations to {output_csv}")
     
     # Calculate WT tm delta
     wt_tm = 0.0
@@ -184,7 +190,7 @@ if mutations:
             m['delta_tm'] = m['tm'] - wt_tm
     
     # Re-save with calculated deltas
-    with open('validation_mutations.csv', 'w', newline='') as f:
+    with open(output_csv, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['variant_name', 'mutation', 'enzyme', 'tm', 'tm_std', 'delta_tm', 'method', 'source', 'notes'])
         writer.writeheader()
         writer.writerows(mutations_sorted)

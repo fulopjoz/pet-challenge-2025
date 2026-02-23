@@ -50,7 +50,8 @@ We use **wildtype-marginal scoring** from protein language models. This requires
 - **ESMC-600M** (EvolutionaryScale, 2024): Newer model rivaling ESM2-3B performance. Best zero-shot Spearman (0.49) in Kral 2025 thesis on antibody Tm. Package: `esm`
 
 **Score combination for predictions:**
-- Activity: `0.5*z(delta_ll) + 0.3*z(abs_ll) + 0.1*z(-entropy) + 0.1*z(logit_native)`
+- Activity 1 (pH 5.5): `0.5*z(delta_ll) + 0.3*z(abs_ll) + 0.1*z(-entropy) + 0.1*z(logit_native)`
+- Activity 2 (pH 9.0): `0.35*z(delta_ll) + 0.35*z(abs_ll) + 0.2*z(-entropy) + 0.1*z(logit_native)`
 - Expression: `0.2*z(delta_ll) + 0.4*z(abs_ll) + 0.2*z(-entropy) + 0.2*z(logit_native)`
 - Ensemble: average of ESM2 and ESMC model-level predictions
 
@@ -58,7 +59,7 @@ Rationale: delta_ll is the primary activity signal (mutation tolerance). abs_ll 
 
 ### Approach 2: ML Baselines (Validation)
 
-Traditional ML models trained on **12 verified IsPETase Tm values** from published papers:
+Traditional ML models validated on **12 verified IsPETase Tm values** from published papers:
 - **Ridge Regression** (primary for small n)
 - **Random Forest** (comparison)
 - **XGBoost** (comparison)
@@ -66,6 +67,7 @@ Traditional ML models trained on **12 verified IsPETase Tm values** from publish
 
 37 sequence-based features: AA composition (20), physicochemical properties (7), active-site distances (3), mutation count features (3), structural proxies (4).
 
+For model fitting and LOOCV, duplicate feature rows (same mutation/sequence with different reported Tm from different assays) are aggregated by mean Tm to avoid leakage-like artifacts in validation.
 These models validate the approach but are NOT used for the challenge submission (insufficient training data for activity/expression prediction).
 
 ## Validation

@@ -33,6 +33,14 @@ def load_scores(name, path):
     """Load score CSV if it exists, return (name, df) or None."""
     if os.path.exists(path):
         df = pd.read_csv(path)
+        if "test_idx" in df.columns:
+            idx = df["test_idx"].astype(int).values
+            expected = np.arange(len(df), dtype=int)
+            if np.array_equal(np.sort(idx), expected) and not np.array_equal(idx, expected):
+                print("  Reordered %s by test_idx for consistent analysis" % name)
+                df = df.sort_values("test_idx").reset_index(drop=True)
+            elif not np.array_equal(np.sort(idx), expected):
+                print("  WARNING: %s has non-consecutive test_idx values" % name)
         print("  Loaded %s: %d rows" % (name, len(df)))
         return df
     else:
@@ -108,12 +116,27 @@ def cross_model_agreement(models):
 
             for score_col in ["delta_ll", "abs_ll"]:
                 if score_col in df1.columns and score_col in df2.columns:
-                    v1 = df1[score_col].astype(float).values
-                    v2 = df2[score_col].astype(float).values
-                    if len(v1) == len(v2):
+                    if "test_idx" in df1.columns and "test_idx" in df2.columns:
+                        merged = df1[["test_idx", score_col]].merge(
+                            df2[["test_idx", score_col]],
+                            on="test_idx",
+                            how="inner",
+                            suffixes=("_1", "_2")
+                        )
+                        v1 = merged[score_col + "_1"].astype(float).values
+                        v2 = merged[score_col + "_2"].astype(float).values
+                    else:
+                        v1 = df1[score_col].astype(float).values
+                        v2 = df2[score_col].astype(float).values
+                        if len(v1) != len(v2):
+                            print("  %s vs %s [%s]: skipped (length mismatch %d vs %d)" % (
+                                n1, n2, score_col, len(v1), len(v2)))
+                            continue
+
+                    if len(v1) > 1:
                         rho, pval = stats.spearmanr(v1, v2)
-                        print("  %s vs %s [%s]: rho=%.4f (p=%.2e)" % (
-                            n1, n2, score_col, rho, pval))
+                        print("  %s vs %s [%s]: rho=%.4f (p=%.2e, n=%d)" % (
+                            n1, n2, score_col, rho, pval, len(v1)))
 
 
 def validate_against_tm_data(models):

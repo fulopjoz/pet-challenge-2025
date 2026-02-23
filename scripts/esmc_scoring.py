@@ -48,8 +48,11 @@ def parse_args():
                         help="ESMC model size (default: esmc_600m)")
     parser.add_argument("--cpu", action="store_true",
                         help="Force CPU (skip GPU)")
-    parser.add_argument("--half", action="store_true", default=True,
-                        help="Use float16 (default: True)")
+    parser.add_argument("--half", dest="half", action="store_true",
+                        help="Use float16 on GPU (default: enabled)")
+    parser.add_argument("--no-half", dest="half", action="store_false",
+                        help="Disable float16 and use float32")
+    parser.set_defaults(half=True)
     return parser.parse_args()
 
 
@@ -78,6 +81,7 @@ def load_model(model_name, use_cpu=False, use_half=True):
     model.requires_grad_(False)
     for param in model.parameters():
         param.requires_grad = False
+    model.eval()
 
     return model, device
 
@@ -104,7 +108,42 @@ def build_aa_token_map(model):
     return aa_map
 
 
-def score_sequence_esmc(model, sequence, device, aa_map):
+def _unwrap_logits_tensor(obj, max_depth=8):
+    """
+    Extract a torch.Tensor from ESM SDK wrapper objects.
+
+    ESM package versions expose logits in slightly different nested wrappers
+    (e.g. tensor, ForwardTrackData, nested .sequence fields). This helper
+    recursively unwraps common attributes until a tensor is found.
+    """
+    if torch.is_tensor(obj):
+        return obj
+    if max_depth <= 0 or obj is None:
+        return None
+
+    # Handle dictionaries and sequences of candidates.
+    if isinstance(obj, dict):
+        for value in obj.values():
+            t = _unwrap_logits_tensor(value, max_depth=max_depth - 1)
+            if t is not None:
+                return t
+    if isinstance(obj, (list, tuple)):
+        for value in obj:
+            t = _unwrap_logits_tensor(value, max_depth=max_depth - 1)
+            if t is not None:
+                return t
+
+    # Common wrapper attributes used by ESM SDK objects.
+    for attr in ("sequence", "tensor", "data", "values", "logits"):
+        if hasattr(obj, attr):
+            t = _unwrap_logits_tensor(getattr(obj, attr), max_depth=max_depth - 1)
+            if t is not None:
+                return t
+
+    return None
+
+
+def score_sequence_esmc(model, sequence, device):
     """
     Run single forward pass with ESMC on a sequence.
     Returns:
@@ -116,15 +155,21 @@ def score_sequence_esmc(model, sequence, device, aa_map):
 
     protein = ESMProtein(sequence=sequence)
     protein_tensor = model.encode(protein)
+    if hasattr(protein_tensor, "to"):
+        protein_tensor = protein_tensor.to(device)
 
     logits_output = model.logits(
         protein_tensor,
         LogitsConfig(sequence=True, return_embeddings=False)
     )
 
-    # logits_output.logits is a ForwardTrackData wrapper; the actual tensor
-    # is in the .sequence attribute: shape (1, L+2, V) including BOS/EOS
-    logits = logits_output.logits.sequence
+    logits = _unwrap_logits_tensor(logits_output.logits)
+    if logits is None:
+        raise TypeError(
+            "Could not extract logits tensor from logits_output.logits "
+            "(type: %s)" % type(logits_output.logits).__name__
+        )
+
     if logits.dim() == 3:
         logits = logits[0]  # remove batch dim -> (L+?, V)
 
@@ -257,7 +302,7 @@ def main():
     for count, wi in enumerate(sorted(needed_wt)):
         seq = wt_seqs[wi]
         log_probs, logits_raw, probs = score_sequence_esmc(
-            model, seq, device, aa_map
+            model, seq, device
         )
         scores = compute_scores(log_probs, logits_raw, probs, seq, aa_map)
         wt_results[wi] = scores
@@ -309,7 +354,7 @@ def main():
             })
         else:
             log_probs, logits_raw, probs = score_sequence_esmc(
-                model, test_seq, device, aa_map
+                model, test_seq, device
             )
             scores = compute_scores(log_probs, logits_raw, probs, test_seq, aa_map)
             results.append({
