@@ -8,7 +8,7 @@ This script produces two feature files:
 
 Rationale (from literature):
   - Expression in E. coli is dominated by 5' mRNA secondary structure, NOT full-gene CAI
-    (Kudla et al. 2009; Cambray et al. 2018; Pearson r=0.762 for codons 2-8 alone)
+    (Kudla et al. 2009; Nieuwkoop et al. 2023 NAR; Pearson r=0.762 for codons 2-8 alone)
   - Rare codons slow translation and trigger ribosome stalling
   - AA property changes (hydrophobicity, charge, size) affect folding and solubility
   - Charge changes are relevant for pH-dependent activity differences

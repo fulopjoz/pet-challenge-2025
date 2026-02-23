@@ -345,8 +345,8 @@ def main():
             "test_idx": i,
             "wt_idx": r["wt_idx"],
             "n_mutations": r["n_mutations"],
-            "delta_ll": "%.6f" % r["delta_ll"],
-            "abs_ll": "%.6f" % r["abs_ll"],
+            "delta_ll": "%.10f" % r["delta_ll"],   # high precision to avoid ties
+            "abs_ll": "%.10f" % r["abs_ll"],        # high precision to avoid ties
             "wt_abs_ll": "%.6f" % r["wt_abs_ll"],
             "entropy": "%.6f" % r["entropy"],
             "logit_native": "%.6f" % r["logit_native"],

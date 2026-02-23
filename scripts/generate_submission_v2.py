@@ -18,12 +18,14 @@ across all single-point variants. Only delta_ll and abs_ll vary per mutation.
 This means expression ranking within a WT was effectively just delta_ll in v1.
 
 Literature basis:
-  - Charlier 2024 (Biophys J): NMR titration of catalytic His242, pKa = 4.90 ± 0.05
+  - Charlier 2024 (Biophys J): NMR titration of catalytic His242 in LCC(ICCG),
+    pKa = 4.90 ± 0.05 (conserved alpha/beta-hydrolase mechanism suggests
+    similar values for IsPETase and related PETases)
   - pH 5.5: His ~80% deprotonated (suboptimal); negative charge can lower His pKa
   - pH 9.0: His >99.9% deprotonated (near-optimal); fitness dominates
   - Lu 2022 (Nature): FAST-PETase N233K beneficial salt bridge at alkaline pH
   - Bell 2022 (Nature Catalysis): HotPETase maintains activity at pH 9.2
-  - Expression: Codons 2-8 dominate E. coli expression (Cambray 2018, r=0.762)
+  - Expression: Codons 2-8 dominate E. coli expression (Nieuwkoop et al. 2023 NAR, r=0.762)
   - PLM scoring: WT-marginal delta_ll correlates with evolutionary fitness
     (Meier et al. 2021); rank correlation with masked marginal ≈1
 
@@ -53,11 +55,11 @@ OUTPUT_CSV = os.path.join(RESULTS_DIR, "submission_zero_shot_v2.csv")
 
 
 def zscore(x):
-    """Z-score normalize, handling constant arrays."""
-    s = np.std(x)
+    """Z-score normalize, handling constant arrays and NaN values."""
+    s = np.nanstd(x)
     if s < 1e-10:
-        return np.zeros_like(x)
-    return (x - np.mean(x)) / s
+        return np.zeros_like(x, dtype=float)
+    return (x - np.nanmean(x)) / s
 
 
 def rank_scale(scores, low, high):
@@ -76,23 +78,53 @@ def compute_plm_scores(scores_df):
     abs_ll = scores_df["abs_ll"].astype(float).values
     entropy = scores_df["entropy"].astype(float).values
     logit_native = scores_df["logit_native"].astype(float).values
+    n_mutations = scores_df["n_mutations"].astype(int).values
+
+    # Z-score delta_ll ONLY among mutants to avoid WT inflation.
+    # WT delta_ll=0 z-scores to ~+2.1 when pooled with mutants (mean~-9),
+    # giving WTs a massive artificial boost. Instead, mutants compete
+    # against each other, and WTs get z_delta=0 (neutral).
+    mut_mask = n_mutations > 0
+    z_delta = np.zeros_like(delta_ll)
+    if mut_mask.sum() > 0:
+        mut_delta = delta_ll[mut_mask]
+        s = np.nanstd(mut_delta)
+        if s > 1e-10:
+            z_delta[mut_mask] = (mut_delta - np.nanmean(mut_delta)) / s
+        # WTs keep z_delta = 0 (neutral, not inflated)
 
     result = {
-        "z_delta": zscore(delta_ll),
+        "z_delta": z_delta,
         "z_abs": zscore(abs_ll),
         "z_entropy": zscore(-entropy),  # negate: lower entropy = better
         "z_logit": zscore(logit_native),
     }
 
-    # Position-specific features (v4): NaN for WT rows → fill with 0 (neutral)
+    # Position-specific features (v4): NaN for WT rows → fill with mean (neutral z~0)
     if "entropy_at_site" in scores_df.columns:
         eas = scores_df["entropy_at_site"].astype(float).values
         nls = scores_df["native_ll_at_site"].astype(float).values
-        # Fill NaN (WT rows) with column mean so z-score maps them to ~0
-        eas_filled = np.where(np.isnan(eas), np.nanmean(eas), eas)
-        nls_filled = np.where(np.isnan(nls), np.nanmean(nls), nls)
-        result["z_entropy_at_site"] = zscore(-eas_filled)  # negate: conserved position → riskier
-        result["z_native_ll_at_site"] = zscore(nls_filled)  # higher native LL → more conserved → riskier
+
+        # NaN guard: if ALL values are NaN, nanmean returns NaN → default to 0
+        eas_mean = np.nanmean(eas)
+        if np.isnan(eas_mean):
+            eas_mean = 0.0
+        eas_filled = np.where(np.isnan(eas), eas_mean, eas)
+
+        nls_mean = np.nanmean(nls)
+        if np.isnan(nls_mean):
+            nls_mean = 0.0
+        nls_filled = np.where(np.isnan(nls), nls_mean, nls)
+
+        # entropy_at_site: low entropy = conserved site = risky to mutate
+        # zscore(eas_filled): low entropy → negative z → negative contribution = penalty
+        result["z_entropy_at_site"] = zscore(eas_filled)
+
+        # native_ll_at_site: values are log-probs (all negative; -0.1=confident, -8.0=uncertain)
+        # After negation: confident site → small positive → below mean → negative z → penalty
+        # So with positive weight: confident (conserved) site → penalty for mutation
+        result["z_native_ll_at_site"] = zscore(-nls_filled)
+
         result["has_site_features"] = True
     else:
         result["has_site_features"] = False
@@ -104,7 +136,7 @@ def compute_activity_1(plm, mut_feats):
     """
     Activity at pH 5.5 — suboptimal pH, enzyme below alkaline optimum.
 
-    Literature basis (Charlier 2024, Hong 2023):
+    Literature basis (Charlier 2024 — LCC His242, Hong 2023):
     - Catalytic His pKa ~4.9 → ~80% deprotonated at pH 5.5 (~20-30% of max activity)
     - Mutations adding negative charge can electrostatically lower His pKa
       → increase deprotonated fraction → maintain activity at suboptimal pH
@@ -116,13 +148,15 @@ def compute_activity_1(plm, mut_feats):
     delta_charge = mut_feats["delta_charge"].values
 
     if plm.get("has_site_features"):
+        # v4 weights (sum=1.0): site features take weight from z_logit
         score = (
-            0.30 * plm["z_delta"]           # mutation tolerance (reduced to make room for site features)
-            + 0.25 * plm["z_abs"]           # foldability (stability matters more at suboptimal pH)
-            + 0.10 * plm["z_entropy"]       # conservation (between-WT)
-            + 0.10 * plm["z_logit"]         # confidence
-            + 0.05 * plm["z_entropy_at_site"]  # NEW: conserved position → riskier mutation
-            + 0.10 * zscore(-delta_charge)  # negative charge may lower catalytic His pKa
+            0.30 * plm["z_delta"]               # mutation tolerance
+            + 0.25 * plm["z_abs"]               # foldability (stability matters at suboptimal pH)
+            + 0.10 * plm["z_entropy"]            # conservation (between-WT)
+            + 0.05 * plm["z_logit"]              # confidence (reduced from 0.10)
+            + 0.05 * plm["z_entropy_at_site"]    # conserved site → penalty (SIGN FIXED v4)
+            + 0.05 * plm["z_native_ll_at_site"]  # confident site → penalty (NEW v4)
+            + 0.10 * zscore(-delta_charge)        # negative charge lowers catalytic His pKa
             + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
         )
     else:
@@ -142,7 +176,7 @@ def compute_activity_2(plm, mut_feats):
     """
     Activity at pH 9.0 — near-optimal pH, fitness dominates.
 
-    Literature basis (Charlier 2024, Lu 2022, Bell 2022):
+    Literature basis (Charlier 2024 — LCC His242, Lu 2022, Bell 2022):
     - Catalytic His pKa ~4.9 → >99.9% deprotonated at pH 9.0 (enzyme at optimum)
     - Evolutionary fitness (delta_ll) is the best predictor at optimal pH
     - Positive charge additions help at alkaline pH:
@@ -156,13 +190,15 @@ def compute_activity_2(plm, mut_feats):
     delta_charge = mut_feats["delta_charge"].values
 
     if plm.get("has_site_features"):
+        # v4 weights (sum=1.0): site features added, z_delta reduced from 0.40
         score = (
-            0.40 * plm["z_delta"]           # mutation tolerance (dominant at optimal pH)
-            + 0.20 * plm["z_abs"]           # foldability
-            + 0.10 * plm["z_entropy"]       # conservation (between-WT)
-            + 0.05 * plm["z_logit"]         # confidence
-            + 0.05 * plm["z_entropy_at_site"]  # NEW: conserved position → riskier mutation
-            + 0.10 * zscore(delta_charge)   # positive charge helps at alkaline pH
+            0.35 * plm["z_delta"]               # mutation tolerance (dominant at optimal pH)
+            + 0.20 * plm["z_abs"]               # foldability
+            + 0.10 * plm["z_entropy"]            # conservation (between-WT)
+            + 0.05 * plm["z_logit"]              # confidence
+            + 0.05 * plm["z_entropy_at_site"]    # conserved site → penalty (SIGN FIXED v4)
+            + 0.05 * plm["z_native_ll_at_site"]  # confident site → penalty (NEW v4)
+            + 0.10 * zscore(delta_charge)         # positive charge helps at alkaline pH
             + 0.10 * zscore(-mut_feats["abs_delta_hydro"].values)  # stability
         )
     else:
@@ -187,7 +223,8 @@ def compute_expression(plm, mut_feats):
     differentiate expression within a scaffold.
 
     Literature basis:
-    - 5' mRNA structure (codons 2-8) is strongest expression predictor (r=0.762)
+    - 5' mRNA structure (codons 2-8) is strongest expression predictor
+      (Nieuwkoop et al. 2023, r=0.762 for codons 2-8)
       → cds_at_5prime_z (AT-rich 5' = less secondary structure = better expression)
     - Rare codons slow translation → cds_rare_codon_z (lower = better)
     - PLM abs_ll captures scaffold-level foldability (between-WT)
@@ -263,6 +300,15 @@ def main():
     mut_feats = pd.read_csv(MUTATION_FEATURES)
     if len(mut_feats) != n_test:
         raise ValueError("Mutation features count mismatch: %d vs %d" % (len(mut_feats), n_test))
+
+    # Ensure alignment by test_idx (same logic as PLM score alignment)
+    if "test_idx" in mut_feats.columns:
+        expected_idx = np.arange(n_test, dtype=int)
+        actual_idx = mut_feats["test_idx"].astype(int).values
+        if not np.array_equal(actual_idx, expected_idx):
+            print("Reordering mutation features by test_idx")
+            mut_feats = mut_feats.sort_values("test_idx").reset_index(drop=True)
+
     print("Loaded mutation features (CDS + AA properties)")
 
     # Collect per-model predictions
@@ -337,7 +383,7 @@ def main():
     # Summary
     print("\n=== Submission Summary (v4 — position-specific features) ===")
     print("Models: %s" % ", ".join(models_used))
-    print("Features: PLM scores + position-specific (entropy_at_site) + CDS + AA properties")
+    print("Features: PLM scores + position-specific (entropy_at_site, native_ll_at_site) + CDS + AA properties")
     print("Sequences: %d" % n_test)
     for name, arr in [("activity_1", activity_1), ("activity_2", activity_2),
                       ("expression", expression)]:

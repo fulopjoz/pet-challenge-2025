@@ -125,7 +125,8 @@ def main():
     scores_df["entropy_at_site"] = entropy_at_site
     scores_df["native_ll_at_site"] = native_ll_at_site
 
-    # Format: empty string for NaN, %.6f otherwise
+    # Format: empty string for NaN, %.6f for site features
+    # Note: delta_ll and abs_ll precision is set in esm2_zero_shot_scoring.py (%.10f)
     scores_df["entropy_at_site"] = scores_df["entropy_at_site"].apply(
         lambda x: "" if pd.isna(x) else "%.6f" % x)
     scores_df["native_ll_at_site"] = scores_df["native_ll_at_site"].apply(
