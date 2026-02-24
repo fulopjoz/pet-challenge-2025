@@ -30,7 +30,7 @@ Literature basis:
     (Meier et al. 2021); rank correlation with masked marginal ≈1
 
 Usage:
-    python scripts/generate_submission_v2.py [--esm2-only] [--esmc-only]
+    python scripts/generate_submission_v2.py [--esm2-only] [--esmc-only] [--no-pka] [--require-pka]
 
 Requires: results/esm2_scores.csv (and optionally esmc_scores.csv)
           results/mutation_features.csv (from compute_cds_features.py)
@@ -347,7 +347,14 @@ def main():
                         help="Use only ESM2 scores (ignore ESMC)")
     parser.add_argument("--esmc-only", action="store_true",
                         help="Use only ESMC scores (ignore ESM2)")
+    parser.add_argument("--no-pka", action="store_true",
+                        help="Force v4 mode: disable pKa features even if file exists")
+    parser.add_argument("--require-pka", action="store_true",
+                        help="Require valid pKa features; fail fast if missing/invalid")
     args = parser.parse_args()
+
+    if args.no_pka and args.require_pka:
+        parser.error("--no-pka and --require-pka cannot be used together.")
 
     test_df = pd.read_csv(TEST_CSV)
     n_test = len(test_df)
@@ -371,26 +378,49 @@ def main():
 
     print("Loaded mutation features (CDS + AA properties)")
 
-    # Load pKa features (optional — from PROPKA analysis)
+    # Load pKa features (optional by default; strict if --require-pka)
     pka_feats = None
-    if os.path.exists(PKA_TEST_FEATURES):
-        pka_feats_raw = pd.read_csv(PKA_TEST_FEATURES)
-        if len(pka_feats_raw) == n_test:
-            # Fill NaN pKa values with column means for z-scoring
-            for col in ["proton_frac_his_pH55", "proton_frac_his_pH90",
-                        "catalytic_his_pka", "delta_protonation_his"]:
-                if col in pka_feats_raw.columns:
-                    col_mean = pka_feats_raw[col].mean()
-                    if np.isnan(col_mean):
-                        col_mean = 0.0
-                    pka_feats_raw[col] = pka_feats_raw[col].fillna(col_mean)
-            pka_feats = pka_feats_raw
-            print("Loaded pKa features (PROPKA) — physics-based pH scoring enabled")
-        else:
-            print("WARNING: pKa feature count mismatch (%d vs %d), ignoring" % (
-                len(pka_feats_raw), n_test))
+    required_pka_cols = ["catalytic_his_pka", "proton_frac_his_pH55", "proton_frac_his_pH90"]
+
+    if args.no_pka:
+        print("NOTE: pKa disabled via --no-pka (forcing v4 behavior)")
     else:
-        print("NOTE: pKa features not found at %s — using charge heuristic only" % PKA_TEST_FEATURES)
+        if not os.path.exists(PKA_TEST_FEATURES):
+            msg = "pKa features not found at %s" % PKA_TEST_FEATURES
+            if args.require_pka:
+                raise FileNotFoundError("ERROR: %s (required by --require-pka)." % msg)
+            print("NOTE: %s — using charge heuristic only" % msg)
+        else:
+            pka_feats_raw = pd.read_csv(PKA_TEST_FEATURES)
+            if len(pka_feats_raw) != n_test:
+                msg = "pKa feature count mismatch (%d vs %d)" % (len(pka_feats_raw), n_test)
+                if args.require_pka:
+                    raise ValueError("ERROR: %s (required by --require-pka)." % msg)
+                print("WARNING: %s, ignoring" % msg)
+            else:
+                missing_cols = [c for c in required_pka_cols if c not in pka_feats_raw.columns]
+                if missing_cols:
+                    msg = "pKa features missing required columns: %s" % missing_cols
+                    if args.require_pka:
+                        raise ValueError("ERROR: %s (required by --require-pka)." % msg)
+                    print("WARNING: %s, ignoring" % msg)
+                else:
+                    if pka_feats_raw["proton_frac_his_pH55"].isna().all() or pka_feats_raw["proton_frac_his_pH90"].isna().all():
+                        msg = "pKa protonation columns are all-NaN"
+                        if args.require_pka:
+                            raise ValueError("ERROR: %s (required by --require-pka)." % msg)
+                        print("WARNING: %s, ignoring" % msg)
+                    else:
+                        # Fill NaN pKa values with column means for z-scoring
+                        for col in ["proton_frac_his_pH55", "proton_frac_his_pH90",
+                                    "catalytic_his_pka", "delta_protonation_his"]:
+                            if col in pka_feats_raw.columns:
+                                col_mean = pka_feats_raw[col].mean()
+                                if np.isnan(col_mean):
+                                    col_mean = 0.0
+                                pka_feats_raw[col] = pka_feats_raw[col].fillna(col_mean)
+                        pka_feats = pka_feats_raw
+                        print("Loaded pKa features (PROPKA) — physics-based pH scoring enabled")
 
     # Collect per-model predictions
     activity1_preds = []
@@ -436,6 +466,8 @@ def main():
     print("\nUsing models: %s" % " + ".join(models_used))
     if len(models_used) > 1:
         print("Ensemble mode: averaging %d model predictions" % len(models_used))
+    version = "v5" if pka_feats is not None else "v4"
+    print("Scoring mode: %s" % version)
 
     # Ensemble: average model-level predictions
     activity1_score = np.mean(activity1_preds, axis=0)
@@ -462,7 +494,7 @@ def main():
     print("\nSubmission saved to %s" % OUTPUT_CSV)
 
     # Summary
-    version = "v5 — pKa + embeddings" if pka_feats is not None else "v4 — position-specific features"
+    version = "v5" if pka_feats is not None else "v4"
     print("\n=== Submission Summary (%s) ===" % version)
     print("Models: %s" % ", ".join(models_used))
     feat_list = "PLM scores + position-specific (entropy_at_site, native_ll_at_site) + CDS + AA properties"
