@@ -212,20 +212,30 @@ def apply_mutation(wt_sequence, mutation_str):
     if mutation_str == 'WT' or not mutation_str:
         return wt_sequence
 
-    seq = list(wt_sequence)
-    applied = 0
-
+    # Deduplicate: combinatorial variants (e.g. DuraPETase+ThermoPETase)
+    # can list R280A twice when both parents include the same mutation.
+    seen = {}
+    unique_parts = []
     for part in mutation_str.split('/'):
         part = part.strip()
         match = re.match(r'^([A-Z])(\d+)([A-Z])$', part)
         if not match:
             print(f"  WARNING: Cannot parse mutation '{part}' in '{mutation_str}'")
             return None
+        pos = int(match.group(2))
+        if pos in seen:
+            if seen[pos] == part:
+                continue  # exact duplicate, skip
+            print(f"  WARNING: Conflicting mutations at position {pos}: "
+                  f"'{seen[pos]}' vs '{part}'")
+            return None
+        seen[pos] = part
+        unique_parts.append((match.group(1), pos - 1, match.group(3), part))
 
-        original = match.group(1)
-        position = int(match.group(2)) - 1  # 1-indexed to 0-indexed
-        mutant = match.group(3)
+    seq = list(wt_sequence)
+    applied = 0
 
+    for original, position, mutant, part in unique_parts:
         if position < 0 or position >= len(seq):
             print(f"  WARNING: Position {position+1} out of range for '{part}'")
             return None
