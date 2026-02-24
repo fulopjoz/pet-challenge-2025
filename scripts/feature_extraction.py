@@ -42,12 +42,27 @@ AA_CHARGE = {
     'S': 0, 'T': 0, 'W': 0, 'Y': 0, 'V': 0
 }
 
-# Wild-type PETase sequence (A0A0K8P6T7)
-WT_SEQUENCE = """MNFPRASRLMQAAVLGGLMAVSAAATAQTNPYARGPNPTAASLEASAGPFTVRSFTVSRPS
-GYGAGTVYYPTNAGGTVGAIAIVPGYTARQSSIKWWGPRLASHGFVVITIDTNSTLDQPSSR
-SSQQMAALRQVASLNGTSSSPIYGKVDTARMGVMGWSMGGGGSLISAANNPSLKAAAPQAPW
-DSSTNFSSVTVPTLIFACENDSIAPVNSSALPIYDSMSRNAKQFLEINGGSHSCANSGNSNQA
-LIGKKGVAWMKRFMDNDTRYSTFACENPNSTRVSDFRTANCS""".replace('\n', '')
+# Wild-type PETase sequence (A0A0K8P6T7) — fallback if FASTA not found
+_FALLBACK_WT_SEQUENCE = (
+    "MNFPRASRLMQAAVLGGLMAVSAAATAQTNPYARGPNPTAASLEASAGPFTVRSFTVSRPS"
+    "GYGAGTVYYPTNAGGTVGAIAIVPGYTARQSSIKWWGPRLASHGFVVITIDTNSTLDQPSSR"
+    "SSQQMAALRQVASLNGTSSSPIYGKVDTARMGVMGWSMGGGGSLISAANNPSLKAAAPQAPW"
+    "DSSTNFSSVTVPTLIFACENDSIAPVNSSALPIYDSMSRNAKQFLEINGGSHSCANSGNSNQA"
+    "LIGKKGVAWMKRFMDNDTRYSTFACENPNSTRVSDFRTANCS"
+)
+
+
+def load_wt_sequence() -> str:
+    """Load WT IsPETase sequence from FASTA, with hardcoded fallback."""
+    fasta = Path(__file__).resolve().parent.parent / "data" / "petase_ideonella.fasta"
+    if fasta.exists():
+        lines = fasta.read_text().strip().split('\n')
+        return ''.join(l.strip() for l in lines if not l.startswith('>'))
+    print("WARNING: petase_ideonella.fasta not found, using fallback sequence")
+    return _FALLBACK_WT_SEQUENCE
+
+
+WT_SEQUENCE = load_wt_sequence()
 
 # Active site positions (I. sakaiensis PETase, 1-indexed)
 ACTIVE_SITE = {

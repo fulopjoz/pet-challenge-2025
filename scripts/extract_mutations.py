@@ -157,29 +157,6 @@ MUTATIONS = [
         'notes': 'DuraPETase measured by Cui et al.'
     },
 
-    # === LCC Reference (different enzyme, excluded from IsPETase ML) ===
-    {
-        'variant_name': 'LCC-WT',
-        'mutation': 'WT',
-        'enzyme': 'LCC',
-        'tm': 84.7,
-        'tm_std': 0.0,
-        'delta_tm': 0.0,
-        'method': 'DSF',
-        'source': 'Tournier 2020 (DOI: 10.1038/s41586-020-2149-4)',
-        'notes': 'Leaf-branch compost cutinase, different enzyme family'
-    },
-    {
-        'variant_name': 'LCC-ICCG',
-        'mutation': 'F243I/D238C/S283C/Y127G',
-        'enzyme': 'LCC',
-        'tm': 94.5,
-        'tm_std': 0.0,
-        'delta_tm': 9.8,
-        'method': 'DSF',
-        'source': 'Tournier 2020 (DOI: 10.1038/s41586-020-2149-4)',
-        'notes': 'Engineered LCC variant (Carbios), 10000x activity'
-    },
 ]
 
 
@@ -211,19 +188,12 @@ def analyze_dataset(mutations):
     print("\nDATASET ANALYSIS")
     print("=" * 60)
 
-    # Split by enzyme
-    ispetase = [m for m in mutations if m['enzyme'] == 'IsPETase']
-    lcc = [m for m in mutations if m['enzyme'] == 'LCC']
+    print(f"Total entries: {len(mutations)} (all IsPETase)")
 
-    print(f"Total entries: {len(mutations)}")
-    print(f"  IsPETase: {len(ispetase)}")
-    print(f"  LCC (reference): {len(lcc)}")
-
-    # Tm range (IsPETase only)
-    tms = [float(m['tm']) for m in ispetase]
+    tms = [float(m['tm']) for m in mutations]
     if tms:
-        print(f"\nIsPETase Tm range: {min(tms):.1f} - {max(tms):.1f} C")
-        print(f"IsPETase mean Tm: {sum(tms)/len(tms):.1f} C")
+        print(f"\nTm range: {min(tms):.1f} - {max(tms):.1f} C")
+        print(f"Mean Tm:  {sum(tms)/len(tms):.1f} C")
 
     # Sources
     sources = {}
@@ -236,7 +206,7 @@ def analyze_dataset(mutations):
 
     # Mutation counts
     print("\nMutation complexity:")
-    for m in ispetase:
+    for m in mutations:
         if m['mutation'] == 'WT':
             n_mut = 0
         else:

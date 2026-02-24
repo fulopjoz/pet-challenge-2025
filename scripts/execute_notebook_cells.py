@@ -130,10 +130,9 @@ def main():
         "LOOCV_R2": [0.379],
         "Spearman": [0.643],
     })
-    context["y"] = np.array([45.7, 56.6, 61.6, 68.2, 70.8, 75.0, 81.1, 67.8])
-    context["names"] = np.array(["WT", "ThermoPETase", "ThermoPETase+KF",
-                                  "ThermoPETase+SS", "ThermoPETase+KF+SS",
-                                  "DuraPETase", "DuraPETase+SS", "FAST-PETase"])
+    _features_df = pd.read_csv(os.path.join(PROJECT_ROOT, "data", "features_matrix.csv"))
+    context["y"] = _features_df["Tm"].values
+    context["names"] = _features_df["variant_name"].values
 
     execution_count = 30  # Continue from where Colab left off
 
