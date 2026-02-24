@@ -52,8 +52,40 @@ def parse_args():
     return parser.parse_args()
 
 
+def _ensure_fair_esm():
+    """Ensure the fair-esm package is installed (not EvolutionaryScale's 'esm').
+
+    On Colab the ESMC cell installs the EvolutionaryScale 'esm' package which
+    overwrites fair-esm's 'esm' module.  Detect this and reinstall fair-esm.
+    """
+    import importlib
+    try:
+        esm = importlib.import_module("esm")
+        if hasattr(esm, "pretrained"):
+            return  # fair-esm already active
+    except ImportError:
+        pass
+
+    print("fair-esm not found (EvolutionaryScale 'esm' may have overwritten it).")
+    print("Reinstalling fair-esm...")
+    import subprocess
+    subprocess.check_call(
+        [sys.executable, "-m", "pip", "install", "-q", "--force-reinstall", "fair-esm"],
+    )
+    # Force reload so the new package is picked up in this process
+    if "esm" in sys.modules:
+        del sys.modules["esm"]
+    for key in list(sys.modules):
+        if key.startswith("esm."):
+            del sys.modules[key]
+    esm = importlib.import_module("esm")
+    assert hasattr(esm, "pretrained"), "fair-esm reinstall failed"
+    print("fair-esm reinstalled successfully.")
+
+
 def load_model(device_preference="auto", use_half=True):
     """Load ESM2-650M with fair-esm."""
+    _ensure_fair_esm()
     import esm
     if device_preference == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"

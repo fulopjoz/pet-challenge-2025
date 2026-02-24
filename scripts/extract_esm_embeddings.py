@@ -16,11 +16,21 @@ import numpy as np
 
 try:
     import torch
-    import esm
+    import importlib
+    esm = importlib.import_module("esm")
+    if not hasattr(esm, "pretrained"):
+        # EvolutionaryScale 'esm' overwrote fair-esm — reinstall
+        import subprocess
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "-q", "--force-reinstall", "fair-esm"],
+        )
+        for key in list(sys.modules):
+            if key == "esm" or key.startswith("esm."):
+                del sys.modules[key]
+        esm = importlib.import_module("esm")
 except ImportError:
     print("ERROR: This script requires torch and fair-esm.")
     print("Install: pip install fair-esm torch")
-    print("Install torch first: pip install torch")
     sys.exit(1)
 
 # Import WT sequence and mutation parser
