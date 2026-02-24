@@ -1,0 +1,3 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,buffer_pH,source_doi,source_table,extraction_method,extraction_confidence,notes
+M5,M5,IsPETase,71.0,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.0c05126,main_text_vision,glm47_vision,vision_only,GLM-4.7 vision only
+M9,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A,IsPETase,75.0,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.0c05126,main_text_vision,glm47_vision,vision_only,GLM-4.7 vision only

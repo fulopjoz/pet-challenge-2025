@@ -132,10 +132,9 @@ Ridge regression validated on **8 aggregated IsPETase Tm values** (LOOCV, from 1
 
 | File | Description |
 |------|-------------|
-| `mutations_dataset.csv` | 14 verified PETase Tm values from 4 papers (12 IsPETase + 2 LCC) |
-| `features_matrix.csv` | 37 sequence features for the 12 IsPETase variants |
+| `mutations_dataset.csv` | 31 verified IsPETase Tm values from 4 papers |
+| `features_matrix.csv` | 37 sequence features for all 31 IsPETase variants |
 | `petase_ideonella.fasta` | WT IsPETase (A0A0K8P6T7, 290 aa) |
-| `lcc_cutinase.fasta` | LCC reference (G9BY57) |
 
 ## Scripts
 

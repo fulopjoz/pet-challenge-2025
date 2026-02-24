@@ -1,0 +1,20 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,buffer_pH,source_doi,source_table,extraction_method,extraction_confidence,notes
+IsPETaseTMS125N/A226T,S121E/D186H/R280A/S125N/A226T,IsPETase,58.5,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,table_s2,pdfplumber_table,single_method,pdfplumber only
+IsPETaseTMK95N/F201I,S121E/D186H/R280A/K95N/F201I,IsPETase,61.8,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,table_s2,pdfplumber_table,single_method,pdfplumber only
+IsPETaseTMQ119L,S121E/D186H/R280A/Q119L,IsPETase,58.6,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,table_s2,pdfplumber_table,single_method,pdfplumber only
+IsPETaseTMT51A/S125I/S207I,S121E/D186H/R280A/T51A/S125I/S207I,IsPETase,58.5,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,table_s2,pdfplumber_table,single_method,pdfplumber only
+IsPETaseWT,WT,IsPETase,45.1,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,table_s2,pdfplumber_table,single_method,pdfplumber only
+IsPETaseTM,S121E/D186H/R280A,IsPETase,56.6,1.6,,nanoDSF,7.5,10.1002/elsc.202100105,table_s2,pdfplumber_table,single_method,pdfplumber only
+IsPETaseWT,WT,IsPETase,45.1,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+IsPETaseTM,S121E/D186H/R280A,IsPETase,56.6,1.6,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+IsPETaseTMK95N/F201I,S121E/D186H/R280A/K95N/F201I,IsPETase,61.6,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+IsPETaseTMN233C/S282C,S121E/D186H/R280A/N233C/S282C,IsPETase,68.2,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+IsPETaseTMK95N/F201I/N233C/S282C,S121E/D186H/R280A/K95N/F201I/N233C/S282C,IsPETase,70.8,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+DuraPETase,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A,IsPETase,75.0,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+DuraPETaseN233C/S282C,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A/N233C/S282C,IsPETase,81.1,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,high,Vision confirmed (delta=0.00)
+DuraPETaseK95N/S121E/F201I/R280A,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A/K95N/S121E/F201I/R280A,IsPETase,71.9,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,single_method,pdfplumber only
+DuraPETaseK95N/S121E/F201I/N233C/R280A/S282C,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A/K95N/S121E/F201I/N233C/R280A/S282C,IsPETase,78.4,0.1,,nanoDSF,7.5,10.1002/elsc.202100105,main_table2,borderless_table_text,single_method,pdfplumber only
+IsPETaseWT,WT,IsPETase,45.1,0.01,,nanoDSF,7.5,10.1002/elsc.202100105,table_s5,borderless_table_text,high,Vision confirmed (delta=0.00)
+IsPETaseTM,S121E/D186H/R280A,IsPETase,56.6,1.55,,nanoDSF,7.5,10.1002/elsc.202100105,table_s5,borderless_table_text,high,Vision confirmed (delta=0.00)
+IsPETaseTMN233C/S282C,S121E/D186H/R280A/N233C/S282C,IsPETase,68.2,0.03,,nanoDSF,7.5,10.1002/elsc.202100105,table_s5,borderless_table_text,high,Vision confirmed (delta=0.00)
+DuraPETase,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A,IsPETase,75.0,0.11,,nanoDSF,7.5,10.1002/elsc.202100105,table_s5,borderless_table_text,high,Vision confirmed (delta=0.00)

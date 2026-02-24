@@ -1,0 +1,32 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,buffer_pH,substrate,enzyme_conc_nM,rel_activity_30C_pct,rel_activity_40C_pct,rel_activity_50C_pct,rel_activity_60C_pct,rel_activity_60C_72h_pct,source_doi,source_table,extraction_confidence,notes
+HotPETase,S121E/D186H/R280A/P181V/S207R/S214Y/Q119K/S213E/N233C/S282C/R90T/Q182M/N212K/R224L/S58A/S61V/K95N/M154G/N241C/K252M/T270Q,IsPETase,82.5,0.0,37.4,nanoDSF,,,,,,,,,10.1038/s41929-022-00821-3,main_text_vision,vision_only,GLM-4.7 vision only
+DuraPETaseN233C/S282C,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A/N233C/S282C,IsPETase,81.1,0.1,36.0,nanoDSF,7.5,amorphous PET film,50,17.4,21.1,39.2,128.9,1989.5,10.1002/elsc.202100105,main_table2,high,Vision confirmed (delta=0.00)
+DuraPETaseK95N/S121E/F201I/N233C/R280A/S282C,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A/K95N/S121E/F201I/N233C/R280A/S282C,IsPETase,78.4,0.1,33.3,nanoDSF,7.5,amorphous PET film,50,13.6,13.9,22.0,65.1,740.8,10.1002/elsc.202100105,main_table2,single_method,pdfplumber only
+DuraPETase,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A,IsPETase,75.0,0.11,29.9,nanoDSF,7.5,amorphous PET film,50,10.9,10.9,24.6,65.5,490.5,10.1002/elsc.202100105,table_s5,high,Vision confirmed (delta=0.00)
+M9,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A,IsPETase,75.0,0.0,29.0,DSF (SYPRO Orange),7.5,amorphous PET film,50,10.9,10.9,24.6,65.5,490.5,10.1021/acscatal.0c05126,main_text_vision,vision_only,GLM-4.7 vision only
+DuraPETaseK95N/S121E/F201I/R280A,L117F/Q119Y/T140D/W159H/G165A/I168R/A180I/S188Q/S214H/R280A/K95N/S121E/F201I/R280A,IsPETase,71.9,0.1,26.8,nanoDSF,7.5,amorphous PET film,50,16.6,11.3,13.5,35.2,211.1,10.1002/elsc.202100105,main_table2,single_method,pdfplumber only
+IsPETaseTMK95N/F201I/N233C/S282C,S121E/D186H/R280A/K95N/F201I/N233C/S282C,IsPETase,70.8,0.1,25.7,nanoDSF,7.5,amorphous PET film,50,16.5,18.6,43.3,27.5,2043.2,10.1002/elsc.202100105,main_table2,high,Vision confirmed (delta=0.00)
+IsPETaseTMN233C/S282C,S121E/D186H/R280A/N233C/S282C,IsPETase,68.2,0.1,23.1,nanoDSF,7.5,amorphous PET film,50,128.4,108.6,160.0,234.7,431.6,10.1002/elsc.202100105,main_table2,high,Vision confirmed (delta=0.00)
+IsPETaseTMK95N/F201I,S121E/D186H/R280A/K95N/F201I,IsPETase,61.6,0.1,16.5,nanoDSF,7.5,amorphous PET film,50,119.4,30.4,70.6,139.9,314.3,10.1002/elsc.202100105,main_table2,high,Vision confirmed (delta=0.00)
+IsPETaseTMQ119L,S121E/D186H/R280A/Q119L,IsPETase,58.6,0.1,13.5,nanoDSF,7.5,,,,,,,,10.1002/elsc.202100105,table_s2,single_method,pdfplumber only
+IsPETaseTMS125N/A226T,S121E/D186H/R280A/S125N/A226T,IsPETase,58.5,0.1,13.4,nanoDSF,7.5,,,,,,,,10.1002/elsc.202100105,table_s2,single_method,pdfplumber only
+IsPETaseTMT51A/S125I/S207I,S121E/D186H/R280A/T51A/S125I/S207I,IsPETase,58.5,0.1,13.4,nanoDSF,7.5,,,,,,,,10.1002/elsc.202100105,table_s2,single_method,pdfplumber only
+S121E/D186H/R280A,S121E/D186H/R280A,IsPETase,57.62,0.0,8.81,DSF (SYPRO Orange),7.0,amorphous PET film,50,100.0,100.0,100.0,100.0,100.0,10.1021/acscatal.9b00568,figure_3b,vision_only,GLM-4.7 vision only
+IsPETaseTM,S121E/D186H/R280A,IsPETase,56.6,1.6,11.5,nanoDSF,7.5,amorphous PET film,50,100.0,100.0,100.0,100.0,100.0,10.1002/elsc.202100105,main_table2,high,Vision confirmed (delta=0.00)
+S121D/D186H/R280A,S121D/D186H/R280A,IsPETase,56.41,0.0,7.6,DSF (SYPRO Orange),7.0,,,,,,,,10.1021/acscatal.9b00568,figure_3b,vision_only,GLM-4.7 vision only
+S121E/D186H,S121E/D186H,IsPETase,56.02,0.0,7.21,DSF (SYPRO Orange),7.0,,,,,,,,10.1021/acscatal.9b00568,figure_3b,vision_only,GLM-4.7 vision only
+S121D/D186H,S121D/D186H,IsPETase,54.85,0.0,6.04,DSF (SYPRO Orange),7.0,,,,,,,,10.1021/acscatal.9b00568,figure_3b,vision_only,GLM-4.7 vision only
+P181A/S121E/D186H,P181A/S121E/D186H,IsPETase,53.56,0.0,4.75,DSF (SYPRO Orange),7.0,,,,,,,,10.1021/acscatal.9b00568,figure_3b,vision_only,GLM-4.7 vision only
+D186V,D186V,IsPETase,53.46,0.0,4.65,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+D186H,D186H,IsPETase,53.16,0.0,4.35,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+D186I,D186I,IsPETase,52.7,0.0,3.89,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+P181A/S121D/D186H,P181A/S121D/D186H,IsPETase,52.69,0.0,3.88,DSF (SYPRO Orange),7.0,,,,,,,,10.1021/acscatal.9b00568,figure_3b,vision_only,GLM-4.7 vision only
+D186F,D186F,IsPETase,51.9,0.0,3.09,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+D186L,D186L,IsPETase,51.67,0.0,2.86,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+P181A,P181A,IsPETase,49.25,0.0,0.44,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+WT,WT,IsPETase,48.81,0.0,0.0,DSF (SYPRO Orange),7.5,amorphous PET film,50,32.3,7.8,4.9,16.0,17.6,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+S121E,S121E,IsPETase,47.68,0.0,-1.13,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+S121D,S121D,IsPETase,47.35,0.0,-1.46,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+P181S,P181S,IsPETase,45.92,0.0,-2.89,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only
+IsPETaseWT,WT,IsPETase,45.1,0.1,0.0,nanoDSF,7.5,amorphous PET film,50,32.3,7.8,4.9,16.0,17.6,10.1002/elsc.202100105,main_table2,high,Vision confirmed (delta=0.00)
+P181G,P181G,IsPETase,43.79,0.0,-5.02,DSF (SYPRO Orange),7.5,,,,,,,,10.1021/acscatal.9b00568,figure_s4b,vision_only,GLM-4.7 vision only

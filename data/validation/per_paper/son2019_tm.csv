@@ -1,0 +1,20 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,buffer_pH,source_doi,source_table,extraction_method,extraction_confidence,notes
+WT,WT,IsPETase,48.81,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+S121D,S121D,IsPETase,47.35,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+S121E,S121E,IsPETase,47.68,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+D186H,D186H,IsPETase,53.16,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+D186F,D186F,IsPETase,51.9,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+D186I,D186I,IsPETase,52.7,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+D186L,D186L,IsPETase,51.67,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+D186V,D186V,IsPETase,53.46,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+P181A,P181A,IsPETase,49.25,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+P181G,P181G,IsPETase,43.79,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+P181S,P181S,IsPETase,45.92,0.0,,DSF (SYPRO Orange),7.5,10.1021/acscatal.9b00568,figure_s4b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+WT,WT,IsPETase,48.81,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+P181A,P181A,IsPETase,49.25,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+S121D/D186H,S121D/D186H,IsPETase,54.85,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+S121E/D186H,S121E/D186H,IsPETase,56.02,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+P181A/S121D/D186H,P181A/S121D/D186H,IsPETase,52.69,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+P181A/S121E/D186H,P181A/S121E/D186H,IsPETase,53.56,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+S121D/D186H/R280A,S121D/D186H/R280A,IsPETase,56.41,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only
+S121E/D186H/R280A,S121E/D186H/R280A,IsPETase,57.62,0.0,,DSF (SYPRO Orange),7.0,10.1021/acscatal.9b00568,figure_3b,glm47_vision_consensus_3x,vision_only,GLM-4.7 vision only

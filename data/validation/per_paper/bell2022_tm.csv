@@ -1,0 +1,2 @@
+variant_name,mutation,enzyme,tm,tm_std,delta_tm,method,buffer_pH,source_doi,source_table,extraction_method,extraction_confidence,notes
+HotPETase,S121E/D186H/R280A/P181V/S207R/S214Y/Q119K/S213E/N233C/S282C/R90T/Q182M/N212K/R224L/S58A/S61V/K95N/M154G/N241C/K252M/T270Q,IsPETase,82.5,0.0,,nanoDSF,,10.1038/s41929-022-00821-3,main_text_vision,glm47_vision,vision_only,GLM-4.7 vision only
