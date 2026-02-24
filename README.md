@@ -6,6 +6,20 @@ Predicting PETase enzyme **activity** and **expression** for 4988 variant sequen
 **Evaluation metric**: NDCG (ranking quality)
 **Targets**: `activity_1` (pH 5.5), `activity_2` (pH 9.0) in umol TPA/min·mg, `expression` (mg/mL)
 
+## Local Setup (VS Code)
+
+```bash
+bash setup.sh
+```
+
+Then open any notebook in VS Code, select the **"PET Challenge 2025"** kernel, and run:
+
+1. **Conservation_Scoring_Pipeline.ipynb** — CPU-only, ~1 min (requires `mafft`)
+2. **Approach_Comparison.ipynb** — compares approaches, recommends best submission
+3. **PET_Challenge_2025_Pipeline_v2.ipynb** — ESM PLM approach (GPU cells will be skipped locally; run on Colab for full pipeline)
+
+Requirements: [uv](https://docs.astral.sh/uv/), Python >= 3.10, `mafft` (for Conservation notebook).
+
 ## Quick Start (Google Colab)
 
 ```bash
@@ -213,8 +227,12 @@ Ridge regression validated on **8 aggregated IsPETase Tm values** (LOOCV, from 1
 ```
 pet-challenge-2025/
 ├── README.md
+├── setup.sh                               # Local setup (creates venv, installs deps)
+├── requirements_local.txt                 # CPU-only dependencies (local/VS Code)
 ├── PET_Challenge_2025_Pipeline_v2.ipynb   # Full pipeline notebook (Colab)
-├── requirements.txt                       # Python dependencies (local)
+├── Conservation_Scoring_Pipeline.ipynb    # Conservation scoring (CPU-only)
+├── Approach_Comparison.ipynb              # Compare approaches
+├── requirements.txt                       # Python dependencies (incl. GPU)
 ├── requirements_colab.txt                 # Python dependencies (Colab)
 ├── setup_colab.sh                         # Colab setup script
 ├── data/

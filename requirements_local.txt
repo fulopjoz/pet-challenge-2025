@@ -1,0 +1,21 @@
+# PET Challenge 2025 - Local/CPU-only dependencies
+# For GPU/Colab deps (torch, fair-esm), see requirements.txt
+#
+# Install with: uv pip install -r requirements_local.txt
+
+# Core
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+scikit-learn>=1.3
+
+# ML models
+xgboost>=2.0
+joblib>=1.3
+
+# Visualization
+matplotlib>=3.7
+seaborn>=0.12
+
+# Jupyter kernel
+ipykernel
