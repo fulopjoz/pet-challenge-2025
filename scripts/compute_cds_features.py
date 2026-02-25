@@ -116,6 +116,8 @@ def map_test_to_wt(test_seqs, wt_seqs):
             if dist < best_dist:
                 best_dist = dist
                 best_wt = wt_i
+        if best_wt < 0:
+            print("WARNING: test seq %d (len=%d) has no matching WT" % (len(parent_indices), tlen))
         parent_indices.append(best_wt)
         n_mutations_list.append(best_dist)
 
@@ -254,6 +256,17 @@ def main():
     mut_feat_list = []
     for i in range(n_test):
         wt_i = parent_idx[i]
+        if wt_i < 0:
+            feats = _default_mutation_features()
+            feats["test_idx"] = i
+            feats["wt_idx"] = -1
+            feats["n_mutations"] = int(n_mutations[i])
+            feats["cds_gc_5prime_z"] = np.nan
+            feats["cds_rare_codon_z"] = np.nan
+            feats["cds_gc_50nt_z"] = np.nan
+            feats["cds_at_5prime_z"] = np.nan
+            mut_feat_list.append(feats)
+            continue
         feats = compute_mutation_features(test_seqs[i], wt_seqs[wt_i])
         feats["test_idx"] = i
         feats["wt_idx"] = int(wt_i)

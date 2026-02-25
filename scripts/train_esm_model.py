@@ -3,10 +3,10 @@
 Train model on ESM embeddings for PETase Tm prediction.
 
 Expects embeddings from extract_esm_embeddings.py:
-  data/esm_embeddings.npy       - absolute embeddings (n, 1280)
-  data/esm_delta_embeddings.npy - delta from WT (n, 1280)
-  data/esm_tms.npy              - Tm values (n,)
-  data/esm_variant_names.txt    - variant names
+  data/esm2_embeddings.npy        - absolute embeddings (n, 1280)
+  data/esm2_delta_embeddings.npy  - delta from WT (n, 1280)
+  data/esm2_tms.npy               - Tm values (n,)
+  data/esm2_variant_names.txt     - variant names
 
 Run: python scripts/train_esm_model.py
 """
@@ -25,11 +25,11 @@ def load_esm_data(data_dir):
     """Load ESM embeddings, delta embeddings, Tm values, and variant names."""
     data_dir = Path(data_dir)
 
-    emb = np.load(data_dir / 'esm_embeddings.npy')
-    delta = np.load(data_dir / 'esm_delta_embeddings.npy')
-    tms = np.load(data_dir / 'esm_tms.npy')
+    emb = np.load(data_dir / 'esm2_embeddings.npy')
+    delta = np.load(data_dir / 'esm2_delta_embeddings.npy')
+    tms = np.load(data_dir / 'esm2_tms.npy')
 
-    with open(data_dir / 'esm_variant_names.txt', 'r') as f:
+    with open(data_dir / 'esm2_variant_names.txt', 'r') as f:
         names = [line.strip() for line in f if line.strip()]
 
     print(f"Loaded ESM data: {len(names)} variants, {emb.shape[1]}-dim embeddings")
@@ -81,7 +81,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Check if embeddings exist
-    if not (data_dir / 'esm_embeddings.npy').exists():
+    if not (data_dir / 'esm2_embeddings.npy').exists():
         print("ERROR: ESM embeddings not found.")
         print("Run extract_esm_embeddings.py first to generate embeddings.")
         sys.exit(1)

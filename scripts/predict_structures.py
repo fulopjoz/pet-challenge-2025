@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Predict 3D structures for all 313 WT PETase sequences using ESMFold.
+Predict 3D structures for PETase sequences using ESMFold.
 
 ESMFold predicts structures directly from sequence (no MSA needed).
 Uses ~3-4GB VRAM for sequences up to ~400 aa. Fast: ~1-2 sec per sequence on T4.
@@ -10,12 +10,19 @@ Uses HuggingFace transformers implementation (no openfold dependency).
 Important: Run AFTER ESM2 scoring (unload ESM2 first to free VRAM),
 or run in a separate Colab cell.
 
+Modes:
+  wt   — Predict 313 WT structures only (default, backward compatible)
+  test — Predict all 4988 test sequences (for per-mutant pKa)
+  all  — Predict both WT and test sequences
+
 Usage:
-    python scripts/predict_structures.py [--cpu] [--max-seqs N]
+    python scripts/predict_structures.py [--mode {wt,test,all}] [--cpu] [--max-seqs N]
 
 Requires: pip install transformers torch
-Output: results/structures/*.pdb (313 PDB files)
-        results/structures/plddt_summary.csv (pLDDT confidence scores)
+Output: results/structures/wt_*.pdb      (WT mode)
+        results/structures/test_*.pdb    (test mode)
+        results/structures/plddt_summary.csv      (WT pLDDT)
+        results/structures/plddt_summary_test.csv  (test pLDDT)
 """
 
 import os
@@ -30,15 +37,20 @@ import torch
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(SCRIPT_DIR)
 WT_CSV = os.path.join(BASE_DIR, "data", "petase_challenge_data", "pet-2025-wildtype-cds.csv")
+TEST_CSV = os.path.join(BASE_DIR, "data", "petase_challenge_data",
+                        "predictive-pet-zero-shot-test-2025.csv")
 STRUCTURES_DIR = os.path.join(BASE_DIR, "results", "structures")
 PLDDT_CSV = os.path.join(STRUCTURES_DIR, "plddt_summary.csv")
+PLDDT_TEST_CSV = os.path.join(STRUCTURES_DIR, "plddt_summary_test.csv")
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="ESMFold structure prediction for WT PETases")
+    parser = argparse.ArgumentParser(description="ESMFold structure prediction for PETases")
+    parser.add_argument("--mode", choices=["wt", "test", "all"], default="wt",
+                        help="wt=313 WTs only, test=4988 test seqs, all=both (default: wt)")
     parser.add_argument("--cpu", action="store_true", help="Force CPU")
     parser.add_argument("--max-seqs", type=int, default=0,
-                        help="Max sequences to process (0 = all)")
+                        help="Max sequences to process per mode (0 = all)")
     return parser.parse_args()
 
 
@@ -126,48 +138,58 @@ def predict_structure(model, tokenizer, sequence, device):
     return pdb_str, plddt_100
 
 
-def main():
-    args = parse_args()
+def read_plddt_from_pdb(pdb_path):
+    """Read per-residue pLDDT scores from B-factor column of CA atoms."""
+    plddt_scores = []
+    with open(pdb_path) as f:
+        for line in f:
+            if line.startswith("ATOM") and line[12:16].strip() == "CA":
+                plddt_scores.append(float(line[60:66].strip()))
+    return np.array(plddt_scores) if plddt_scores else np.array([0.0])
+
+
+def predict_batch(model, tokenizer, device, sequences, idx_list, prefix,
+                  plddt_csv_path, idx_col_name, max_seqs=0):
+    """
+    Predict structures for a list of sequences.
+
+    Args:
+        sequences: list of AA sequences
+        idx_list: list of indices (for naming/logging)
+        prefix: filename prefix ('wt' or 'test')
+        plddt_csv_path: path to save pLDDT summary CSV
+        idx_col_name: column name for the index ('wt_idx' or 'test_idx')
+        max_seqs: limit number of sequences (0 = all)
+    """
     t0 = time.time()
 
-    # Load WT sequences
-    wt_df = pd.read_csv(WT_CSV)
-    wt_seqs = list(wt_df["Wt AA Sequence"].values)
-    print("Loaded %d WT sequences" % len(wt_seqs))
+    if max_seqs > 0:
+        sequences = sequences[:max_seqs]
+        idx_list = idx_list[:max_seqs]
+        print("Processing first %d sequences" % len(sequences))
 
-    if args.max_seqs > 0:
-        wt_seqs = wt_seqs[:args.max_seqs]
-        print("Processing first %d sequences" % len(wt_seqs))
-
-    # Load model
-    device_pref = "cpu" if args.cpu else "auto"
-    model, tokenizer, device = load_esmfold(device_pref)
-
-    # Create output directory
     os.makedirs(STRUCTURES_DIR, exist_ok=True)
 
-    # Predict structures
+    # Use 4-digit zero-padding for test (up to 9999), 3-digit for wt (up to 999)
+    pad = 4 if prefix == "test" else 3
+
     plddt_rows = []
-    n_total = len(wt_seqs)
-    for i, seq in enumerate(wt_seqs):
-        pdb_path = os.path.join(STRUCTURES_DIR, "wt_%03d.pdb" % i)
+    n_total = len(sequences)
+    for pos, (idx, seq) in enumerate(zip(idx_list, sequences)):
+        pdb_name = "%s_%0*d.pdb" % (prefix, pad, idx)
+        pdb_path = os.path.join(STRUCTURES_DIR, pdb_name)
 
         # Skip if already predicted
         if os.path.exists(pdb_path):
-            print("  [%d/%d] wt_%03d.pdb exists, skipping" % (i + 1, n_total, i))
-            # Read pLDDT from existing PDB
-            plddt_scores = []
-            with open(pdb_path) as f:
-                for line in f:
-                    if line.startswith("ATOM") and line[12:16].strip() == "CA":
-                        plddt_scores.append(float(line[60:66].strip()))
-            plddt_arr = np.array(plddt_scores) if plddt_scores else np.array([0.0])
+            if (pos + 1) % 500 == 0 or pos == 0:
+                print("  [%d/%d] %s exists, skipping" % (pos + 1, n_total, pdb_name))
+            plddt_arr = read_plddt_from_pdb(pdb_path)
             plddt_rows.append({
-                "wt_idx": i,
+                idx_col_name: idx,
                 "seq_len": len(seq),
                 "mean_plddt": float(np.mean(plddt_arr)),
                 "min_plddt": float(np.min(plddt_arr)),
-                "pdb_file": "wt_%03d.pdb" % i,
+                "pdb_file": pdb_name,
             })
             continue
 
@@ -180,38 +202,37 @@ def main():
         min_plddt = float(np.min(plddt)) if len(plddt) > 0 else 0.0
 
         plddt_rows.append({
-            "wt_idx": i,
+            idx_col_name: idx,
             "seq_len": len(seq),
             "mean_plddt": mean_plddt,
             "min_plddt": min_plddt,
-            "pdb_file": "wt_%03d.pdb" % i,
+            "pdb_file": pdb_name,
         })
 
         elapsed = time.time() - t0
-        rate = (i + 1) / elapsed if elapsed > 0 else 0
-        remaining = (n_total - i - 1) / rate if rate > 0 else 0
+        rate = (pos + 1) / elapsed if elapsed > 0 else 0
+        remaining = (n_total - pos - 1) / rate if rate > 0 else 0
 
-        if (i + 1) % 10 == 0 or i == 0:
-            print("  [%d/%d] wt_%03d len=%d pLDDT=%.1f (%ds elapsed, ~%ds remaining)" % (
-                i + 1, n_total, i, len(seq), mean_plddt,
+        if (pos + 1) % 50 == 0 or pos == 0:
+            print("  [%d/%d] %s len=%d pLDDT=%.1f (%ds elapsed, ~%ds remaining)" % (
+                pos + 1, n_total, pdb_name, len(seq), mean_plddt,
                 int(elapsed), int(remaining)))
 
         # Free GPU memory periodically
-        if device == "cuda" and (i + 1) % 50 == 0:
+        if device == "cuda" and (pos + 1) % 50 == 0:
             torch.cuda.empty_cache()
 
     # Save pLDDT summary
     plddt_df = pd.DataFrame(plddt_rows)
-    plddt_df.to_csv(PLDDT_CSV, index=False)
+    plddt_df.to_csv(plddt_csv_path, index=False)
 
     total_time = time.time() - t0
-    print("\nDone! %d structures predicted in %ds (%.1f min)" % (
-        n_total, int(total_time), total_time / 60))
-    print("Structures: %s" % STRUCTURES_DIR)
-    print("pLDDT summary: %s" % PLDDT_CSV)
+    print("\nDone! %d %s structures in %ds (%.1f min)" % (
+        n_total, prefix, int(total_time), total_time / 60))
+    print("pLDDT summary: %s" % plddt_csv_path)
 
     # Summary stats
-    print("\n=== pLDDT Summary ===")
+    print("\n=== pLDDT Summary (%s) ===" % prefix)
     print("Mean pLDDT: %.1f (min=%.1f, max=%.1f)" % (
         plddt_df["mean_plddt"].mean(),
         plddt_df["mean_plddt"].min(),
@@ -219,6 +240,53 @@ def main():
     low_conf = (plddt_df["mean_plddt"] < 70).sum()
     if low_conf > 0:
         print("WARNING: %d structures with mean pLDDT < 70" % low_conf)
+
+
+def main():
+    args = parse_args()
+
+    do_wt = args.mode in ("wt", "all")
+    do_test = args.mode in ("test", "all")
+
+    # Load model
+    device_pref = "cpu" if args.cpu else "auto"
+    model, tokenizer, device = load_esmfold(device_pref)
+
+    # WT structures
+    if do_wt:
+        print("=" * 60)
+        print("Predicting WT structures")
+        print("=" * 60)
+        wt_df = pd.read_csv(WT_CSV)
+        wt_seqs = list(wt_df["Wt AA Sequence"].values)
+        print("Loaded %d WT sequences" % len(wt_seqs))
+        predict_batch(
+            model, tokenizer, device,
+            sequences=wt_seqs,
+            idx_list=list(range(len(wt_seqs))),
+            prefix="wt",
+            plddt_csv_path=PLDDT_CSV,
+            idx_col_name="wt_idx",
+            max_seqs=args.max_seqs,
+        )
+
+    # Test structures
+    if do_test:
+        print("=" * 60)
+        print("Predicting test-set structures (all 4988 sequences)")
+        print("=" * 60)
+        test_df = pd.read_csv(TEST_CSV)
+        test_seqs = list(test_df["sequence"].values)
+        print("Loaded %d test sequences" % len(test_seqs))
+        predict_batch(
+            model, tokenizer, device,
+            sequences=test_seqs,
+            idx_list=list(range(len(test_seqs))),
+            prefix="test",
+            plddt_csv_path=PLDDT_TEST_CSV,
+            idx_col_name="test_idx",
+            max_seqs=args.max_seqs,
+        )
 
 
 if __name__ == "__main__":

@@ -9,10 +9,11 @@ Checks beyond basic sanity (which are in generate_submission_v2.py):
   4. entropy_at_site partial correlation: entropy_at_site adds signal beyond delta_ll
 
 Usage:
-    python scripts/validate_v4.py
+    python scripts/validate_v4.py --version {v4,v5,v6} [--submission PATH] [--scores PATH]
 """
 
 import os
+import argparse
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -21,20 +22,37 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 
-ESM2_SCORES = os.path.join(RESULTS_DIR, "esm2_scores.csv")
-SUBMISSION = os.path.join(RESULTS_DIR, "submission_zero_shot_v2.csv")
+DEFAULT_SCORES = os.path.join(RESULTS_DIR, "esm2_scores.csv")
+DEFAULT_SUBMISSION = os.path.join(RESULTS_DIR, "submission_zero_shot_v2.csv")
 TEST_CSV = os.path.join(PROJECT_ROOT, "data", "petase_challenge_data",
                          "predictive-pet-zero-shot-test-2025.csv")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Validate PET submission scoring behavior.")
+    parser.add_argument("--submission", default=DEFAULT_SUBMISSION,
+                        help="Submission CSV path (default: results/submission_zero_shot_v2.csv)")
+    parser.add_argument("--scores", default=DEFAULT_SCORES,
+                        help="Score CSV path with n_mutations/wt_idx (default: results/esm2_scores.csv)")
+    parser.add_argument("--version", required=True, choices=["v4", "v5", "v6"],
+                        help="Submission scoring version used for weight-vector validation.")
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
     print("=" * 60)
     print("V4 VALIDATION CHECKS")
     print("=" * 60)
 
     # Load data
-    scores = pd.read_csv(ESM2_SCORES)
-    sub = pd.read_csv(SUBMISSION)
+    if not os.path.exists(args.scores):
+        raise FileNotFoundError("Scores file not found: %s" % args.scores)
+    if not os.path.exists(args.submission):
+        raise FileNotFoundError("Submission file not found: %s" % args.submission)
+    scores = pd.read_csv(args.scores)
+    sub = pd.read_csv(args.submission)
     test_df = pd.read_csv(TEST_CSV)
 
     n_test = len(test_df)
@@ -181,9 +199,30 @@ def main():
 
     # --- Check 5: Weight sum verification ---
     print("\n--- Check 5: Weight vector sums ---")
-    act1_weights = [0.30, 0.25, 0.10, 0.05, 0.05, 0.05, 0.10, 0.10]
-    act2_weights = [0.35, 0.20, 0.10, 0.05, 0.05, 0.05, 0.10, 0.10]
-    expr_weights = [0.30, 0.15, 0.10, 0.10, 0.15, 0.10, 0.10]
+    # Version-specific weight vectors (must match generate_submission_v2.py)
+    WEIGHT_VECTORS = {
+        "v4": {
+            "act1": [0.30, 0.25, 0.10, 0.05, 0.05, 0.05, 0.10, 0.10],
+            "act2": [0.35, 0.20, 0.10, 0.05, 0.05, 0.05, 0.10, 0.10],
+            "expr": [0.30, 0.15, 0.10, 0.10, 0.15, 0.10, 0.10],
+        },
+        "v5": {
+            "act1": [0.30, 0.25, 0.10, 0.05, 0.05, 0.05, 0.05, 0.10, 0.05],
+            "act2": [0.35, 0.20, 0.10, 0.05, 0.05, 0.05, 0.05, 0.10, 0.05],
+            "expr": [0.30, 0.15, 0.10, 0.10, 0.15, 0.10, 0.10],
+        },
+        "v6": {
+            "act1": [0.275, 0.225, 0.10, 0.05, 0.05, 0.025, 0.05, 0.075, 0.10, 0.05],
+            "act2": [0.325, 0.20, 0.10, 0.05, 0.05, 0.025, 0.05, 0.05, 0.10, 0.05],
+            "expr": [0.30, 0.15, 0.10, 0.10, 0.15, 0.10, 0.10],
+        },
+    }
+    version = args.version
+    print("  Validating weight vectors for %s" % version)
+    wv = WEIGHT_VECTORS[version]
+    act1_weights = wv["act1"]
+    act2_weights = wv["act2"]
+    expr_weights = wv["expr"]
 
     checks_total += 1
     s1, s2, se = sum(act1_weights), sum(act2_weights), sum(expr_weights)
