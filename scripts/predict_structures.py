@@ -57,6 +57,8 @@ def parse_args():
 def load_esmfold(device="auto"):
     """Load ESMFold model via HuggingFace transformers (no openfold needed)."""
     from transformers import AutoTokenizer, EsmForProteinFolding
+    import transformers
+    transformers.logging.disable_progress_bar()
 
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
